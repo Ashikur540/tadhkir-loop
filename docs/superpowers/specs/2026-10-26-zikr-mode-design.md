@@ -28,7 +28,7 @@ Over time the product should do three things (in phases):
 - A second line under the spinner shows one short hadith for the whole turn.
 - The line that closes a turn reads "Alhamdulillah · 14s".
 - At session start: "Bismillah" plus the hadith of the day.
-- Three switches in `/config`: Language, Show hadith, Show meaning.
+- Two switches in `/config`: Show hadith, Show meaning.
 - Installable from a public GitHub repo that is its own marketplace.
 
 **Non-goals for Phase 1** (later phases)
@@ -65,16 +65,19 @@ Over time the product should do three things (in phases):
 | Hadith format | Prophet's ﷺ quoted words + narrator + reference: `"..." (Abu Huraira, Bukhari 1234)` |
 | Picking | Script finds short candidates, owner approves each in a local review page |
 | Content storage | Bundled JSON inside the plugin, no runtime network |
-| Settings | Language (english only for now), Show hadith, Show meaning |
+| Settings | Show hadith, Show meaning. Language switch removed from Phase 1 (only one option), comes back in Phase 2 with Arabic |
 | Distribution | Public GitHub repo, `/plugin marketplace add <owner>/zikr-mode` |
 
 ## 4. Builder's calls (made by Claude, owner can change)
 
 - Arabic text is stored in `content.json` now (same API call), so Phase 2
   Arabic needs no second review. It is not displayed in Phase 1.
-- Hadith of the day is computed from the local date, so every user sees the
-  same hadith on the same day.
-- Each session starts the spinner rotation at a random point in the pool.
+- Hadith of the day is computed from the user's **local** calendar date.
+  Users in different time zones can see different hadith at the same moment.
+- Each turn starts the spinner rotation at a random point in the pool, and
+  the 8 seconds count from the start of the turn.
+- When the terminal is narrower than 60 columns, the hadith line is hidden
+  instead of squeezed. Religious text is never cut off mid-sentence.
 - Hadith candidates are limited to about 200 characters of shown text.
 - Minimum Claude Code version: 2.1.299.
 
@@ -91,6 +94,12 @@ Over time the product should do three things (in phases):
   - `ui.render` with `component: 'Spinner'`: props `word`, `message`,
     `suffix`, `mode`. A hook can pass changed props to `next`, or return
     `Box` with Claude Code's drawing plus extra `Text` lines under it.
+  - `next(e)` at the Spinner site returns `{ type: 'engine', ref }`, and the
+    docs show placing it in a `Box` next to our own elements.
+  - Claude Code does **not** re-run a `ui.render` hook on a timer. It only
+    redraws when the site's props or the terminal width change. A mod must
+    call `$.ui.invalidate('ui.render')` itself, for example from
+    `$.clock.every(...)`. Redraws are throttled and coalesced.
   - `ui.render` with `component: 'TurnDuration'`: props `word`,
     `durationMs`. A hook can draw its own line.
   - `InfoNotice` (lines under the logo) can only rewrite notices that
@@ -110,7 +119,7 @@ Over time the product should do three things (in phases):
 ```
 zikr-mode/                       (repo root, public on GitHub)
 ├── .claude-plugin/
-│   ├── plugin.json              name, version, userConfig (3 switches)
+│   ├── plugin.json              name, version, userConfig (2 switches)
 │   └── marketplace.json         repo is its own marketplace, source "./"
 ├── hooks/
 │   ├── hooks.json               { "modules": ["./register.js"] }
@@ -148,7 +157,8 @@ zikr-mode/                       (repo root, public on GitHub)
       "en": "<the Prophet's quoted words, as shown>",
       "original": "<full API text, kept for audit>",
       "ar": "...",
-      "url": "https://sunnah.com/bukhari:1"
+      "url": "https://sunnah.com/bukhari:1",
+      "approvedAt": "2026-10-27"
     }
   ]
 }
@@ -160,8 +170,10 @@ Every hadith in this file was approved by a human in the review page.
 
 - `loadContent(json)` validates the shape and returns content, or `null` if
   it is broken.
-- `wordAt(content, nowMs, sessionOffset)` returns `{ en, meaning }`. The pool is
-  zikr + names. Index = `(sessionOffset + floor(nowMs / 8000)) % pool.length`.
+- `wordAt(content, elapsedMs, turnOffset)` returns `{ en, meaning }` from one
+  pool entry, so the word and its meaning can never mismatch. The pool is
+  zikr + names. Index = `(turnOffset + floor(elapsedMs / 8000)) % pool.length`,
+  where `elapsedMs` is time since the turn started.
 - `hadithOfDay(content, date)` returns the hadith. Index = days since epoch
   (local date) `% hadith.length`.
 - `randomHadith(content, rand)` returns one hadith for a turn.
@@ -170,17 +182,20 @@ Every hadith in this file was approved by a human in the review page.
 
 ### 6.3 `hooks/register.js` (the mod)
 
-`register(on, options)` gets `options.language`, `options.show_hadith`,
+`register(on, options)` gets `options.show_hadith` and
 `options.show_meaning`.
 
 - Load `data/content.json` once. If `loadContent` returns `null`, register
   nothing, so Claude Code behaves normally.
-- `turn.start`: pick the turn's hadith with `randomHadith`, store it in a
-  variable.
+- `turn.start`: save the turn start time, a random `turnOffset`, and the
+  turn's hadith (`randomHadith`). Start `$.clock.every(8000, () =>
+  $.ui.invalidate('ui.render'))` so the spinner redraws with the next word.
+- `turn.complete`: stop that timer, so nothing redraws while idle.
 - `ui.render` `{ component: 'Spinner' }`: call `next` with `word` replaced
   by `wordAt(...).en`. Return a `Box` (column) holding Claude Code's drawing,
   then a dim `Text` with `"<word>: <meaning>"` if Show meaning is on, then a
-  dim `Text` with the turn's hadith if Show hadith is on.
+  dim `Text` with the turn's hadith if Show hadith is on and
+  `e.viewport.columns` is 60 or more.
 - `ui.render` `{ component: 'TurnDuration' }`: return our own `Text`:
   `Alhamdulillah · <formatDuration(durationMs)>`.
 - `session.start`: `$.ui.log("Bismillah")`, then, if Show hadith is on,
@@ -208,7 +223,12 @@ hadith are dropped and never guessed.
 
 - File input loads `candidates.json`.
 - One card at a time: full original text, shown text, reference,
-  sunnah.com link. Names and zikr show an editable spelling field.
+  sunnah.com link. Names and zikr show editable spelling and meaning fields.
+- The reviewer approves the **exact text users will see**. If they edit the
+  shown text, the edited version is what gets approved and shipped. Each
+  approved item stores `approvedAt` (date).
+- The extractor only suggests candidates. It is never treated as
+  verification.
 - Keys: `A` approve, `R` reject. Progress is saved in `localStorage`.
 - "Download content.json" writes only approved items in the 6.1 shape.
 - The reviewer opens the sunnah.com link and rejects the card if the link
@@ -217,13 +237,13 @@ hadith are dropped and never guessed.
 
 ## 7. Settings (`plugin.json` `userConfig`)
 
-| Key | Type | Options | Default | Title |
-|---|---|---|---|---|
-| `language` | string | `["english"]` | `english` | Language |
-| `show_hadith` | boolean | | `true` | Show hadith |
-| `show_meaning` | boolean | | `true` | Show meaning |
+| Key | Type | Default | Title |
+|---|---|---|---|
+| `show_hadith` | boolean | `true` | Show hadith |
+| `show_meaning` | boolean | `true` | Show meaning |
 
-Adding `"arabic"` to `language.options` later does not break existing users.
+Phase 2 adds a `language` string field with `options: ["english", "arabic"]`
+and default `english`, so existing users keep English.
 
 ## 8. Error handling
 
@@ -232,11 +252,28 @@ Adding `"arabic"` to `language.options` later does not break existing users.
 - Any hook throws or times out: `.catch` returns `next(e)`, so Claude Code
   draws its own version.
 - Empty hadith list: hadith lines are skipped, zikr still shows.
+- `loadContent` drops single bad records (missing `en`, `meaning`,
+  reference) instead of failing the whole file.
+- A hook throwing during render must not leave the timer running forever:
+  the timer is stopped on `turn.complete` and on `session.end`.
 - Mods need Claude Code 2.1.299+. On older versions the README tells the
   user to update.
 
+## 8.1 Security note (goes in README)
+
+- No network requests at runtime. Content ships inside the plugin.
+- Reads only its own `data/content.json`. Does not read project files.
+- No telemetry, no user data collected.
+- No third-party runtime dependencies.
+
 ## 9. Testing
 
+- **Spike first** (throwaway, before the real build): a tiny mod that
+  (1) swaps the spinner word, (2) rotates it on an 8 s timer, (3) adds one
+  line under the spinner, (4) replaces the done line, (5) writes a startup
+  line with `$.ui.log`. Check each in Terminal, at narrow width, and in the
+  Desktop app. The screens in this spec are **proposed** until the spike
+  confirms them.
 - `hooks/picker.test.ts`: word changes after 8 s and stays within 8 s;
   meaning always matches word; hadith of day is stable within a day and
   changes next day; `loadContent` returns `null` on bad input;

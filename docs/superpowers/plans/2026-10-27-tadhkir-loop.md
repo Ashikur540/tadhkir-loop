@@ -16,6 +16,8 @@
 - Source of truth for every mods API name and event shape: `.claude-plugin/types/claude-code/index.d.ts`, which Claude Code writes when you run `claude --plugin-dir .` once. The GitHub copy can be older. Do not commit this folder.
 - Hooks module rules (from `claude plugin validate`): ES modules only; static `import` declarations from relative paths inside the plugin (only bare import allowed: `claude-code`); write every `$` call in full inline (`$.ui.log(...)`), never pass `$` to an imported function or assign it; event names as string literals.
 - No runtime network calls, no reading project files, no telemetry, no third-party runtime dependencies.
+- `$.clock.now()` returns a **Promise** of epoch milliseconds: always `await $.clock.now()`.
+- The hadith line may wrap onto more lines in the terminal; never shorten or cut reviewed text to fit.
 - Every `on(...)` gets `.catch(() => undefined)` (per the types, `undefined` from a catch handler means "hook absent", so Claude Code carries on normally).
 - Fixed values: rotation `8000` ms; hide hadith below `60` columns; hadith shown text at most `200` characters; done line `✻ Alhamdulillah · <duration>`; startup line `Bismillah` + ` · Hadith of the day: <formatted hadith>`; hadith format `"<en>" (<narrator>, <collection> <number>)`.
 - Shown hadith numbers and URLs are **sunnah.com** numbers.
@@ -184,12 +186,12 @@ git commit -m "Add picker: content loading, word rotation, hadith choice, format
 | subhanallah | SubhanAllah | Glory be to Allah |
 | alhamdulillah | Alhamdulillah | All praise is for Allah |
 | allahu-akbar | Allahu Akbar | Allah is the Greatest |
-| la-ilaha-illallah | La ilaha illallah | There is no god but Allah |
+| la-ilaha-illallah | La ilaha illallah | There is no deity worthy of worship except Allah |
 | astaghfirullah | Astaghfirullah | I seek Allah's forgiveness |
-| subhanallahi-wa-bihamdihi | SubhanAllahi wa bihamdihi | Glory and praise be to Allah |
+| subhanallahi-wa-bihamdihi | SubhanAllahi wa bihamdihi | Glory be to Allah and praise be to Him |
 | subhanallahil-azim | SubhanAllahil Azim | Glory be to Allah, the Magnificent |
-| la-hawla | La hawla wa la quwwata illa billah | There is no power or strength except with Allah |
-| hasbunallah | HasbunAllahu wa ni'mal wakil | Allah is enough for us, and He is the best guardian |
+| la-hawla | La hawla wa la quwwata illa billah | There is no power or strength except through Allah |
+| hasbunallah | HasbunAllahu wa ni'mal wakil | Allah is sufficient for us, and He is the best Disposer of affairs |
 | salawat | Allahumma salli ala Muhammad | O Allah, send blessings upon Muhammad |
 | bismillah | Bismillah | In the name of Allah |
 | rabbi-zidni-ilma | Rabbi zidni ilma | My Lord, increase me in knowledge |
@@ -272,12 +274,12 @@ Expected: the `register.test.ts` tests FAIL (no hooks registered yet); `picker.t
   - Top: `import raw from '../data/content.js'` and the picker imports; `const CONTENT = loadContent(raw)`.
   - Module state: `mainTurnId`, `turnStart`, `turnOffset`, `turnHadith`, `timer`.
   - `register(on, options)`: return at once if `CONTENT` is `null`. `opts = { showHadith: options?.show_hadith !== false, showMeaning: options?.show_meaning !== false }`.
-  - `turn.start`: if `e.agentId`, `return next(e)`. Else `timer?.cancel()`, set `mainTurnId = e.turnId`, `turnStart = $.clock.now()`, `turnOffset = Math.floor(Math.random() * poolLength)`, `turnHadith = randomHadith(CONTENT, Math.random)`, `timer = $.clock.every(8000, () => { if (mainTurnId) $.ui.invalidate('ui.render') })`, `return next(e)`.
+  - `turn.start`: if `e.agentId`, `return next(e)`. Else `timer?.cancel()`, set `mainTurnId = e.turnId`, `turnStart = await $.clock.now()`, `turnOffset = Math.floor(Math.random() * poolLength)`, `turnHadith = randomHadith(CONTENT, Math.random)`, `timer = $.clock.every(8000, () => { if (mainTurnId) $.ui.invalidate('ui.render') })`, `return next(e)`.
   - `turn.complete`: only when `e.turnId === mainTurnId`: `mainTurnId = null`, `timer?.cancel()`, `timer = null`. Always `return next(e)`.
   - `session.end`: same cleanup, `return next(e)`.
-  - `ui.render` `{ component: 'Spinner' }`: if `e.props.message` is set, `return next(e)`. Else `entry = wordAt(CONTENT, $.clock.now() - turnStart, turnOffset)`, `parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)`, `theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })`. Return `theirs` alone if no `hadithLine`, else `Box({ flexDirection: 'column', children: [theirs, Text({ dimColor: true, children: [parts.hadithLine] })] })` from `$.ui.resolve(e)`.
+  - `ui.render` `{ component: 'Spinner' }`: if `e.props.message` is set, `return next(e)`. Else `entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset)`, `parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)`, `theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })`. Return `theirs` alone if no `hadithLine`, else `Box({ flexDirection: 'column', children: [theirs, Text({ dimColor: true, children: [parts.hadithLine] })] })` from `$.ui.resolve(e)`.
   - `ui.render` `{ component: 'TurnDuration' }`: return `Text({ dimColor: true, children: ['✻ Alhamdulillah · ' + formatDuration(e.props.durationMs)] })`.
-  - `session.start`: `h = opts.showHadith ? hadithOfDay(CONTENT, new Date($.clock.now())) : null`; `$.ui.log('Bismillah' + (h ? ' · Hadith of the day: ' + formatHadith(h) : ''))`; `return next(e)`.
+  - `session.start`: `h = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null`; `$.ui.log('Bismillah' + (h ? ' · Hadith of the day: ' + formatHadith(h) : ''))`; `return next(e)`.
   - Every `on(...)` ends with `.catch(() => undefined)`.
 
 - [ ] **Step 5: Run tests and validation**
@@ -370,7 +372,7 @@ git commit -m "Add hadith extractor and name cleaner for the content workshop"
   1. Fetch `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/{eng,ara}-{bukhari,muslim}.json`.
   2. For each English hadith: `extract(text)`; keep it only if not `null` and `quote.length <= 200`. Join Arabic by `hadithnumber`. `id` = `<collection lowercase>-<hadithnumber>`, `number` = `String(hadithnumber)`, `url` = `https://sunnah.com/<collection lowercase>:<hadithnumber>` as a first guess the reviewer corrects.
   3. Fetch `https://api.aladhan.com/v1/asmaAlHusna`; map each to `{ number, en: cleanName(transliteration), meaning: en.meaning, ar: name, sourceTransliteration: transliteration }`.
-  4. Read `tools/zikr.json`. Write `tools/candidates.json` and print counts: `zikr N, names 99, hadith Bukhari X, Muslim Y`.
+  4. Read `tools/zikr.json`. Write `tools/candidates.json` and print counts: `zikr N, names 99, hadith Bukhari X, Muslim Y`, plus rejected counts per collection by reason: `no narrator`, `no Prophet quote` (extract returned null), `too long`. A pattern that silently drops most of a collection must be visible here.
 
 - [ ] **Step 3: Run it**
 
@@ -403,7 +405,7 @@ git commit -m "Add candidate fetch script for hadith and the 99 names"
   - Warn on a hadith card if the edited `en` is over 200 characters.
   - "Download content.js" writes `export default ` + `JSON.stringify({ version: 1, zikr, names, hadith }, null, 2)` with approved items only. Hadith keep `original` for audit, as spec 6.1 says.
 
-- [ ] **Step 2: Manual check in Chrome.** Open `tools/review.html`, load `tools/candidates.json`, approve 2 zikr, 2 names (edit one spelling), 1 hadith (edit its number), reject 1 hadith. Reload the page and reload the file: the same decisions show. Download `content.js`; check it holds exactly those approved items with the edits and `approvedAt`.
+- [ ] **Step 2: Manual check in Chrome.** Open `tools/review.html`, load `tools/candidates.json`, approve 2 zikr, 2 names (edit one spelling), 1 hadith (edit its number), reject 1 hadith. Reload the page and reload the file: the same decisions **and the edited spelling and number** show. Download `content.js`; check it holds exactly those approved items with the edits and `approvedAt`.
 
 - [ ] **Step 3: Check the output loads in the mod.** Copy the downloaded file over `data/content.js` in a scratch copy only (not the repo), run `node -e "import('./data/content.js').then(m => console.log(Object.keys(m.default)))"` there. Expected: `[ 'version', 'zikr', 'names', 'hadith' ]`.
 
@@ -424,7 +426,7 @@ This task has a human step: the owner reviews the content. Nothing ships without
 - Modify: `data/content.js` (replaced by the owner's reviewed download)
 - Create: `README.md`, `LICENSE`
 
-- [ ] **Step 1: Owner review.** The owner runs `node tools/fetch-candidates.js`, opens `tools/review.html`, reviews the 12 zikr, all 99 names, and hadith until about 100 to 200 are approved, checking each against its sunnah.com page (number, wording, context). Save the download as `data/content.js`.
+- [ ] **Step 1: Owner review.** The owner runs `node tools/fetch-candidates.js`, opens `tools/review.html`, checks the 12 zikr (transliteration and meaning) against a reliable source rather than only reading the English, reviews all 99 names, and hadith until about 100 to 200 are approved, checking each against its sunnah.com page (number, wording, context). Save the download as `data/content.js`.
 
 - [ ] **Step 2: Run tests on real content**
 
@@ -433,7 +435,7 @@ Expected: all pass, and the `session start` test now logs a `Hadith of the day` 
 
 - [ ] **Step 3: Write `README.md`** with: what it does (3 screens from the spec appendix), install commands (`/plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin`, `/plugin install tadhkir-loop@tadhkir-loop`), requires Claude Code 2.1.299+, the two `/config` switches plus the tip that `/config` > Show tips hides Claude's own tip line, the security note (spec 8.1), content sources and credits (spec 8.2: hadith-api, Muhsin Khan, Abdul Hamid Siddiqui, aladhan.com, sunnah.com links), and how to suggest a hadith (open an issue with the sunnah.com link).
 
-- [ ] **Step 4: Add `LICENSE`** for the code with the license the owner picks, and set `license` in `plugin.json` to its SPDX id.
+- [ ] **Step 4: Add `LICENSE`**: MIT for the code (owner's choice), and set `license` in `plugin.json` to `MIT`. The README states that MIT covers the code only, not the bundled translations (spec 8.2).
 
 - [ ] **Step 5: Final checks**
 

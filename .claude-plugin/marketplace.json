@@ -1,0 +1,14 @@
+{
+  "name": "tadhkir-loop",
+  "owner": {
+    "name": "Ashikur540"
+  },
+  "description": "Tadhkir Loop: zikr, the 99 names of Allah and authentic hadith for Claude Code.",
+  "plugins": [
+    {
+      "name": "tadhkir-loop",
+      "source": "./",
+      "description": "Zikr, the 99 names of Allah and authentic hadith in Claude Code's spinner while Claude works."
+    }
+  ]
+}

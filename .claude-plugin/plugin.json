@@ -1,0 +1,25 @@
+{
+  "name": "tadhkir-loop",
+  "displayName": "Tadhkir Loop",
+  "version": "0.1.0",
+  "description": "Zikr, the 99 names of Allah and authentic hadith in Claude Code's spinner while Claude works.",
+  "author": {
+    "name": "Ashikur540"
+  },
+  "repository": "https://github.com/Ashikur540/tadhkir-loop-claude-plugin",
+  "license": "MIT",
+  "userConfig": {
+    "show_hadith": {
+      "type": "boolean",
+      "title": "Show hadith",
+      "description": "Show a short hadith under the spinner, and the hadith of the day above the prompt at startup",
+      "default": true
+    },
+    "show_meaning": {
+      "type": "boolean",
+      "title": "Show meaning",
+      "description": "Show the meaning after the zikr or name in the spinner",
+      "default": true
+    }
+  }
+}

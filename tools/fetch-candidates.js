@@ -22,9 +22,12 @@ async function collection(name, label) {
     getJson(`${HADITH_API}/ara-${name}.json`),
   ])
   const arabic = new Map(ara.hadiths.map((h) => [h.hadithnumber, h.text]))
+  // Entries with book 0 and no reference repeat a neighbour's text word for word
+  const referenced = new Set(eng.hadiths.filter((h) => h.reference?.book).map((h) => h.text))
   const kept = []
-  const rejected = { 'no narrator': 0, 'no Prophet quote': 0, 'too short': 0, 'too long': 0 }
+  const rejected = { 'duplicate': 0, 'no narrator': 0, 'no Prophet quote': 0, 'too short': 0, 'too long': 0 }
   for (const h of eng.hadiths) {
+    if (!h.reference?.book && referenced.has(h.text)) { rejected['duplicate']++; continue }
     if (!/^Narrated\s+[^:]+:/.test(h.text)) { rejected['no narrator']++; continue }
     const found = extract(h.text)
     if (!found) { rejected['no Prophet quote']++; continue }

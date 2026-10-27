@@ -852,7 +852,7 @@ export default {
       "id": "bukhari-2083",
       "collection": "Bukhari",
       "number": "2083",
-      "narrator": "Abu Hurairah (ra)",
+      "narrator": "Abu Huraira",
       "en": "Certainly a time will come when people will not bother to know from where they earned the money, by lawful means or unlawful means.",
       "original": "Narrated Abu Hurairah (ra):The Prophet (ﷺ) said \"Certainly a time will come when people will not bother to know from where they earned the money, by lawful means or unlawful means.\" (See Hadith no)",
       "ar": "حَدَّثَنَا آدَمُ، حَدَّثَنَا ابْنُ أَبِي ذِئْبٍ، حَدَّثَنَا سَعِيدٌ الْمَقْبُرِيُّ، عَنْ أَبِي هُرَيْرَةَ، عَنِ النَّبِيِّ صلى الله عليه وسلم قَالَ ‏ \"‏ لَيَأْتِيَنَّ عَلَى النَّاسِ زَمَانٌ لاَ يُبَالِي الْمَرْءُ بِمَا أَخَذَ الْمَالَ، أَمِنْ حَلاَلٍ أَمْ مِنْ حَرَامٍ ‏\"‏‏.‏",

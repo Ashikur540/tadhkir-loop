@@ -9,15 +9,19 @@ const PROPHET_SAID = [
 ]
 // How far after "said" the opening quote may start
 const QUOTE_WINDOW = 40
+// A saying that starts later than this is usually a fragment of a story
+const STORY_LIMIT = 120
 
 // Returns the narrator and the Prophet's first quoted words, or null when unsure.
 export function extract(text) {
   const narrated = /^Narrated\s+([^:]+):/.exec(text)
   if (!narrated) return null
-  const narrator = narrated[1].trim().replace(/^['`]+/, '')
+  const narrator = narrated[1].trim().replace(/`/g, "'").replace(/^'+/, '')
+  const bodyStart = narrated[0].length
 
   const hits = PROPHET_SAID.map((p) => text.indexOf(p)).filter((i) => i >= 0)
   for (const at of hits.sort((a, b) => a - b)) {
+    if (at - bodyStart > STORY_LIMIT) return null
     const after = at + PROPHET_SAID.find((p) => text.startsWith(p, at)).length
     const open = text.indexOf('"', after)
     if (open < 0 || open - after > QUOTE_WINDOW) continue

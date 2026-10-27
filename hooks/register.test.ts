@@ -7,7 +7,7 @@ const stubs = (on: any, seen: string[]) => {
   on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
 }
-const done = (turnId: string) => ({ turnId, answer: '', durationMs: 1000, isAborted: false, usage: null })
+const done = (turnId: string) => ({ turnId, answer: '', durationMs: 1000, isAborted: false })
 
 test('spinner shows a zikr word with its meaning and rotates every 8 s', async ($, on) => {
   const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
@@ -17,6 +17,9 @@ test('spinner shows a zikr word with its meaning and rotates every 8 s', async (
   const first = seen.at(-1)
   expect(first).not.toBe('Baking')
   expect(await ui.find({ type: 'Text', text: /\| · .+…$/ })).toBeDefined()
+  // Hadith: quote and source on their own lines, under the spinner
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^~ .+ · (Bukhari|Muslim) \S+$/ })).toBeDefined()
   await clock.advance(8000)
   expect(seen.at(-1)).not.toBe(first)
 })

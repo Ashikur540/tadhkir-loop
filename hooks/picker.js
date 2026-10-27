@@ -61,12 +61,14 @@ export function formatDuration(ms) {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
-/** @returns {{ suffix: string | null, hadithLine: string | null }} */
+/** @returns {{ suffix: string | null, quote: string | null, source: string | null }} */
 export function spinnerParts(entry, hadith, opts, columns) {
   const wide = (need) => columns === undefined || need <= columns
   const suffix = ' · ' + entry.meaning + '…'
+  const show = opts.showHadith && hadith && wide(MIN_HADITH_COLUMNS)
   return {
     suffix: opts.showMeaning && wide(2 + entry.en.length + suffix.length + SPINNER_EXTRA) ? suffix : null,
-    hadithLine: opts.showHadith && hadith && wide(MIN_HADITH_COLUMNS) ? '  ' + formatHadith(hadith) : null,
+    quote: show ? `"${hadith.en}"` : null,
+    source: show ? `~ ${hadith.narrator} · ${hadith.collection} ${hadith.number}` : null,
   }
 }

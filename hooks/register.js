@@ -57,9 +57,14 @@ export function register(on, options) {
     const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset)
     const parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
-    if (!parts.hadithLine) return theirs
+    if (!parts.quote) return theirs
     const { Box, Text } = $.ui.resolve(e)
-    return Box({ flexDirection: 'column', children: [theirs, Text({ dimColor: true, children: [parts.hadithLine] })] })
+    // paddingLeft keeps wrapped lines in one column; the blank row sets it apart from Claude's tip
+    const hadith = Box({ flexDirection: 'column', marginTop: 1, paddingLeft: 4, children: [
+      Text({ dimColor: true, italic: true, children: [parts.quote] }),
+      Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [parts.source] })] }),
+    ] })
+    return Box({ flexDirection: 'column', children: [theirs, hadith] })
   }).catch(() => undefined)
 
   on('ui.render', { component: 'TurnDuration' }, async ($, e) => {

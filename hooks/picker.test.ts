@@ -56,12 +56,12 @@ test('spinnerParts honours switches, width and long lines', () => {
   const h = H('1') as any
   const on = { showHadith: true, showMeaning: true }
   expect(spinnerParts(e, h, on, 100)).toEqual({ suffix: ' · The Most Merciful…',
-    hadithLine: '  "Fixture saying 1." (Test Narrator, Bukhari 1)' })
-  expect(spinnerParts(e, h, on, 59).hadithLine).toBe(null)                       // under 60 columns
-  expect(spinnerParts(e, h, on, undefined).hadithLine).not.toBe(null)            // not measured: treat as wide
+    quote: '"Fixture saying 1."', source: '~ Test Narrator · Bukhari 1' })
+  expect(spinnerParts(e, h, on, 59)).toMatchObject({ quote: null, source: null })  // under 60 columns
+  expect(spinnerParts(e, h, on, undefined).quote).not.toBe(null)                 // not measured: treat as wide
   expect(spinnerParts(e, h, { ...on, showMeaning: false }, 100).suffix).toBe(null)
-  expect(spinnerParts(e, h, { ...on, showHadith: false }, 100).hadithLine).toBe(null)
-  expect(spinnerParts(e, null, on, 100).hadithLine).toBe(null)
+  expect(spinnerParts(e, h, { ...on, showHadith: false }, 100)).toMatchObject({ quote: null, source: null })
+  expect(spinnerParts(e, null, on, 100)).toMatchObject({ quote: null, source: null })
   const long = { en: 'La hawla wa la quwwata illa billah', meaning: 'There is no power or strength except through Allah' }
   expect(spinnerParts(long, h, on, 70).suffix).toBe(null)                        // would wrap: drop meaning
   expect(spinnerParts(long, h, on, 160).suffix).not.toBe(null)

@@ -1,7 +1,7 @@
 # Tadhkir Loop: design
 
 Date: 2026-10-26
-Status: draft, waiting for final approval
+Status: approved (2026-10-27)
 
 ## 1. Why
 

@@ -20,6 +20,7 @@
   .muted { color: var(--muted); }
   .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
   button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
   button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
   button.ok { border-color: var(--ok); color: var(--ok); }
   button.no { border-color: var(--no); color: var(--no); }
@@ -138,6 +139,11 @@ function render() {
   const view = document.getElementById('view')
   const list = items()
   document.getElementById('download').disabled = !data
+  if (!data) {
+    view.innerHTML = '<div class="card">Start here: click <b>Choose File</b> and pick <code>tools/candidates.json</code> ' +
+      'from this project. Make it first with <code>node tools/fetch-candidates.js</code> if it is missing.</div>'
+    return
+  }
   if (!list.length) { view.replaceChildren(); return }
   const item = list[pos]
   const v = value(tab, item)

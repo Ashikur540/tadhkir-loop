@@ -24,10 +24,11 @@ Over time the product should do three things (in phases):
 
 - Spinner word shows zikr and the 99 names in English transliteration
   ("SubhanAllah", "Ar-Rahman").
-- A line under the spinner shows the meaning of the current word.
-- A second line under the spinner shows one short hadith for the whole turn.
+- The meaning of the current word shows on the same spinner line, right
+  after the word: `Ar-Rahman · The Most Merciful…`.
+- A line under the spinner shows one short hadith for the whole turn.
 - The line that closes a turn reads "Alhamdulillah · 14s".
-- At session start: "Bismillah" plus the hadith of the day.
+- At session start: one line, "Bismillah · Hadith of the day: ...".
 - Two switches in `/config`: Show hadith, Show meaning.
 - Installable from a public GitHub repo that is its own marketplace.
 
@@ -57,11 +58,12 @@ Over time the product should do three things (in phases):
 | English style | Transliteration ("SubhanAllah"), not translation |
 | Spinner pool | Zikr and the 99 names, mixed |
 | Spinner speed | Word changes about every 8 seconds |
-| Meaning line | Meaning of the current word, changes with it |
+| Meaning | On the spinner line after the word (`Ar-Rahman · The Most Merciful…`), changes with it. Chosen after the spike showed Claude's own `Tip:` line sits between the spinner and any line we add below it |
 | Hadith line | One hadith per turn, fixed while the turn runs |
 | Done line | Always "Alhamdulillah · <duration>" |
-| Startup | "Bismillah" + one hadith of the day (same all day) |
+| Startup | One line: "Bismillah · Hadith of the day: ..." (same hadith all day). Claude Code prefixes it with the plugin name: `zikr-mode: Bismillah · ...` |
 | Hadith rule | Bukhari and Muslim only, always with reference |
+| Reference numbers | Shown number is the **sunnah.com** number, the one users will look up. The reviewer confirms it against the sunnah.com page |
 | Hadith format | Prophet's ﷺ quoted words + narrator + reference: `"..." (Abu Huraira, Bukhari 1234)` |
 | Picking | Script finds short candidates, owner approves each in a local review page |
 | Content storage | Bundled JSON inside the plugin, no runtime network |
@@ -90,7 +92,13 @@ Over time the product should do three things (in phases):
 - **99 names API**: `https://api.aladhan.com/v1/asmaAlHusna`. Free, no key.
   Each entry has `name` (Arabic), `transliteration` (e.g. "Ar Rahmaan"),
   `number`, `en.meaning`.
-- **Mods API** (types in `anthropics/claude-code` `mods/types/claude-code.d.ts`):
+- **Mods API**. Source of truth is the types file Claude Code writes into
+  `.claude-plugin/types/claude-code/index.d.ts` when the mod loads with
+  `--plugin-dir`. The copy on GitHub can be older.
+  - `$.clock.every(ms, fn)` returns a `Timer` object. Stop it with
+    `timer.cancel()`. (Calling it like a function throws; the spike hit this.)
+  - `$.ui.log(text)` is drawn like a dim system notice, prefixed with the
+    plugin name, and is **not sent to the model**, so it costs no tokens.
   - `ui.render` with `component: 'Spinner'`: props `word`, `message`,
     `suffix`, `mode`. A hook can pass changed props to `next`, or return
     `Box` with Claude Code's drawing plus extra `Text` lines under it.
@@ -110,9 +118,14 @@ Over time the product should do three things (in phases):
     string field needs Claude Code 2.1.271 or later.
   - A plugin `settings.json` only accepts `agent` and `subagentStatusLine`,
     so `spinnerVerbs` cannot be shipped by a plugin. This is why we use a mod.
-- **Open question for testing**: the docs reference says the Spinner site
-  renders in Terminal, Desktop and VS Code, but the GitHub types file says
-  terminal only. Check on the Desktop app during the build.
+- **Spike results (2026-10-27, Claude Code 2.1.310, terminal)**: all five
+  behaviours confirmed on screen: word swap keeps Claude's color, timer
+  and status text; the word and meaning change every 8 s; a hadith line
+  draws under the spinner; the done line reads `✻ Alhamdulillah · 41s`; the
+  startup line shows at the top. Claude's own `⎿ Tip:` line is part of
+  Claude Code's spinner drawing, so any line we add lands **below** the tip.
+- **Still open**: the narrow-width rule (hidden hadith under 60 columns) and
+  the Desktop app were not checked in the spike. Check both during the build.
 
 ## 6. Architecture
 
@@ -175,7 +188,8 @@ Every hadith in this file was approved by a human in the review page.
   zikr + names. Index = `(turnOffset + floor(elapsedMs / 8000)) % pool.length`,
   where `elapsedMs` is time since the turn started.
 - `hadithOfDay(content, date)` returns the hadith. Index = days since epoch
-  (local date) `% hadith.length`.
+  (local date) `% hadith.length`. Known and accepted: when an update adds
+  hadith, the hadith of the day can change in the middle of that day.
 - `randomHadith(content, rand)` returns one hadith for a turn.
 - `formatHadith(h)` returns `"<en>" (<narrator>, <collection> <number>)`.
 - `formatDuration(ms)` returns "14s", "1m 4s", matching Claude Code's style.
@@ -190,16 +204,20 @@ Every hadith in this file was approved by a human in the review page.
 - `turn.start`: save the turn start time, a random `turnOffset`, and the
   turn's hadith (`randomHadith`). Start `$.clock.every(8000, () =>
   $.ui.invalidate('ui.render'))` so the spinner redraws with the next word.
-- `turn.complete`: stop that timer, so nothing redraws while idle.
-- `ui.render` `{ component: 'Spinner' }`: call `next` with `word` replaced
-  by `wordAt(...).en`. Return a `Box` (column) holding Claude Code's drawing,
-  then a dim `Text` with `"<word>: <meaning>"` if Show meaning is on, then a
-  dim `Text` with the turn's hadith if Show hadith is on and
-  `e.viewport.columns` is 60 or more.
+- `turn.complete`: `timer.cancel()`, so nothing redraws while idle.
+- `session.end`: `timer.cancel()` too, in case a turn never completed.
+- `ui.render` `{ component: 'Spinner' }`: if `e.props.message` is set
+  (Claude Code is showing a status of its own), pass the event on unchanged.
+  Otherwise call `next` with `word` = `wordAt(...).en` and, if Show meaning
+  is on, `suffix` = `' · ' + meaning + '…'`. Return a `Box` (column) holding
+  Claude Code's drawing, then a dim `Text` with the turn's hadith if Show
+  hadith is on and `e.viewport.columns` is 60 or more.
 - `ui.render` `{ component: 'TurnDuration' }`: return our own `Text`:
   `Alhamdulillah · <formatDuration(durationMs)>`.
-- `session.start`: `$.ui.log("Bismillah")`, then, if Show hadith is on,
-  `$.ui.log("Hadith of the day: " + formatHadith(hadithOfDay(...)))`.
+- `session.start`: one `$.ui.log` call: `"Bismillah"`, plus
+  `" · Hadith of the day: " + formatHadith(hadithOfDay(...))` if Show hadith
+  is on. One call, so the `zikr-mode:` prefix shows once. It fires again
+  after a plugin reload, which is fine.
 - Every hook has a `.catch` that falls back to `next(e)`.
 
 ### 6.4 `tools/` (content workshop)
@@ -231,9 +249,13 @@ hadith are dropped and never guessed.
   verification.
 - Keys: `A` approve, `R` reject. Progress is saved in `localStorage`.
 - "Download content.json" writes only approved items in the 6.1 shape.
-- The reviewer opens the sunnah.com link and rejects the card if the link
-  shows a different hadith (numbering can differ between the API and
-  sunnah.com, mostly for Muslim).
+- The reviewer opens the sunnah.com link and checks it shows the same
+  hadith. The number field is editable: the reviewer sets it (and the URL)
+  to the **sunnah.com** number, because that is what users will look up.
+  If the right sunnah.com page can't be found, reject the card.
+- The reviewer also checks **context**: the first quote in a hadith is
+  sometimes a question or a companion speaking, not the lesson. Reject
+  quotes that mislead without the rest of the text.
 
 ## 7. Settings (`plugin.json` `userConfig`)
 
@@ -268,12 +290,8 @@ and default `english`, so existing users keep English.
 
 ## 9. Testing
 
-- **Spike first** (throwaway, before the real build): a tiny mod that
-  (1) swaps the spinner word, (2) rotates it on an 8 s timer, (3) adds one
-  line under the spinner, (4) replaces the done line, (5) writes a startup
-  line with `$.ui.log`. Check each in Terminal, at narrow width, and in the
-  Desktop app. The screens in this spec are **proposed** until the spike
-  confirms them.
+- **Spike: done** (see section 5). The screens in the appendix are
+  confirmed in the terminal.
 - `hooks/picker.test.ts`: word changes after 8 s and stays within 8 s;
   meaning always matches word; hadith of day is stable within a day and
   changes next day; `loadContent` returns `null` on bad input;
@@ -283,8 +301,8 @@ and default `english`, so existing users keep English.
 - `claude plugin validate --strict` passes.
 - `claude plugin test` passes.
 - Manual: `claude --plugin-dir .` in Terminal, check spinner, meaning,
-  hadith, done line, startup lines, and each `/config` switch. Then check
-  the Desktop app.
+  hadith, done line, startup line, each `/config` switch, and the hadith
+  line hiding under 60 columns. Then check the Desktop app.
 
 ## 10. Phase 2 (not designed yet)
 
@@ -293,3 +311,56 @@ and default `english`, so existing users keep English.
 - Arabic display, after testing in macOS Terminal, iTerm2 and the VS Code
   terminal.
 - Maybe: daily remote content updates, listing in Anthropic's directory.
+
+## Appendix: screens (confirmed in the terminal by the spike)
+
+Lines from Zikr Mode are dim except the spinner word, which keeps Claude
+Code's own color. The hadith shown is a real one (Bukhari 1, from the API);
+the shipped list holds only reviewed hadith.
+
+**Session start**
+
+```
+ ▐▛███▜▌   Claude Code v2.1.310
+▝▜█████▛▘  Opus 5.5 · Claude Max
+  ▘▘ ▝▝    ~/projects/my-app
+
+  zikr-mode: Bismillah · Hadith of the day: "The reward of deeds depends
+  upon the intentions and every person will get the reward according to
+  what he has intended." (Umar bin Al-Khattab, Bukhari 1)
+```
+
+**While Claude works** (word and meaning change every 8 s, hadith stays)
+
+```
+✻ Ar-Rahman · The Most Merciful… (26s · thinking more with high effort)
+  ⎿  Tip: Press Shift+Enter to send a multi-line message
+  "The reward of deeds depends upon the intentions and every person will
+  get the reward according to what he has intended." (Umar bin Al-Khattab, Bukhari 1)
+```
+
+The `Tip:` line is Claude Code's own and appears only sometimes. Users can
+turn it off in `/config` > Show tips.
+
+**Show meaning off**
+
+```
+✻ Ar-Rahman… (26s)
+  "The reward of deeds depends upon the intentions ..." (Umar bin Al-Khattab, Bukhari 1)
+```
+
+**Show hadith off, or terminal under 60 columns**
+
+```
+✻ Ar-Rahman · The Most Merciful… (26s)
+```
+
+**Turn finished**
+
+```
+  ...last line of Claude's answer.
+✻ Alhamdulillah · 41s
+```
+
+**Content broken or a hook fails**: Claude Code's normal look
+(`✻ Pondering…`, `✻ Baked for 41s`).

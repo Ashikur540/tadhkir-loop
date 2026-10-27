@@ -59,7 +59,8 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (e.props.message) return next(e)
+    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it
+    if (e.surface !== 'terminal' || e.props.message) return next(e)
     const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset)
     const parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
@@ -73,7 +74,9 @@ export function register(on, options) {
     return Box({ flexDirection: 'column', children: [theirs, hadith] })
   }).catch(() => undefined)
 
-  on('ui.render', { component: 'TurnDuration' }, async ($, e) => {
+  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    // "Waiting for 2 background agents" and the ctrl+o view stay Claude Code's
+    if (e.props.waitingFor || e.props.isExpanded) return next(e)
     const { Text } = $.ui.resolve(e)
     return Text({ dimColor: true, children: ['✻ Alhamdulillah · ' + formatDuration(e.props.durationMs)] })
   }).catch(() => undefined)

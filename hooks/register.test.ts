@@ -54,6 +54,24 @@ test('done line reads Alhamdulillah with the duration', async ($, on) => {
     viewport: { columns: 100, rows: 30 }, props: { word: 'Baked', durationMs: 41000 } })
   expect(await ui.find({ type: 'Text', text: '✻ Alhamdulillah · 41s' })).toBeDefined()
 })
+const DONE = { plugin: 'tadhkir-loop', component: 'TurnDuration', requestId: 'm2', surface: 'terminal',
+  viewport: { columns: 100, rows: 30 }, props: { word: 'Baked', durationMs: 41000 } } as const
+test('done line leaves the waiting-for-agents text and the ctrl+o view to Claude Code', async ($, on) => {
+  mock.clock(on)
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['engine line'] }))
+  const waiting = await $.ui.mount({ ...DONE, props: { ...DONE.props,
+    waitingFor: { agents: [{ id: 'a1', agentType: 'general-purpose' }], workflows: 0 } } })
+  expect(await waiting.find({ type: 'Text', text: 'engine line' })).toBeDefined()
+  const expanded = await $.ui.mount({ ...DONE, requestId: 'm3', props: { ...DONE.props, isExpanded: true } })
+  expect(await expanded.find({ type: 'Text', text: 'engine line' })).toBeDefined()
+})
+test('on the desktop the spinner keeps Claude Code\'s step text', async ($, on) => {
+  const seen: string[] = []; mock.clock(on); stubs(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  const ui = await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Creating notes.md' } })
+  expect(seen.at(-1)).toBe('Creating notes.md')
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+})
 test('session start logs one Bismillah line', async ($, on) => {
   const logs: string[] = []; mock.clock(on)
   on('session.start', () => ({ cwd: '/work' }))

@@ -12,7 +12,8 @@ const done = (turnId: string) => ({ turnId, answer: '', durationMs: 1000, isAbor
 test('spinner shows a zikr word with its meaning and rotates every 8 s', async ($, on) => {
   const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  const ui = await $.ui.mount(SPINNER)
+  // Wide enough that even the longest zikr keeps its meaning (narrow widths drop it on purpose)
+  const ui = await $.ui.mount({ ...SPINNER, viewport: { columns: 200, rows: 30 } })
   const first = seen.at(-1)
   expect(first).not.toBe('Baking')
   expect(await ui.find({ type: 'Text', text: /\| · .+…$/ })).toBeDefined()

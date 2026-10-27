@@ -151,8 +151,9 @@ function render() {
   const list = items()
   document.getElementById('download').disabled = !data
   if (!data) {
-    view.innerHTML = '<div class="card">Start here: click <b>Choose File</b> and pick <code>tools/candidates.json</code> ' +
-      'from this project. Make it first with <code>node tools/fetch-candidates.js</code> if it is missing.</div>'
+    view.innerHTML = '<div class="card">Start here. <b>1.</b> Pick <code>tools/candidates.json</code> ' +
+      '(make it first with <code>node tools/fetch-candidates.js</code> if it is missing). ' +
+      '<b>2.</b> Pick <code>data/content.js</code>, so what already ships counts as approved.</div>'
     return
   }
   if (!list.length) { view.replaceChildren(); return }

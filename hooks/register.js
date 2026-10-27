@@ -82,14 +82,15 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.start', async ($, e, next) => {
-    $.ui.log('Bismillah')
+    // Only where a person reads it: a -p or SDK host would get it as a message
+    if (e.isInteractive) $.ui.log('Bismillah')
     return next(e)
   }).catch(() => undefined)
 
   // The log line can't hold line breaks, so the hadith of the day gets the band
   // above the prompt, until the first message
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const h = showCard && !e.props.hasSurvey && !e.props.view?.agentId
+    const h = showCard && e.surface === 'terminal' && !e.props.hasSurvey && !e.props.view?.agentId
       ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
     if (!h) return next(e)
     const { quote, source } = hadithParts(h)

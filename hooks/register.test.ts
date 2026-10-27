@@ -79,6 +79,13 @@ test('session start logs one Bismillah line', async ($, on) => {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect(logs).toEqual(['Bismillah'])
 })
+test('a -p or SDK run logs no Bismillah', async ($, on) => {
+  const logs: string[] = []; mock.clock(on)
+  on('session.start', () => ({ cwd: '/work' }))
+  on('ui.log', ($: any, e: any) => { logs.push(e.text); return { value: undefined } })
+  await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
+  expect(logs).toEqual([])
+})
 const BAND = { plugin: 'tadhkir-loop', component: 'AbovePrompt', requestId: 'band', surface: 'terminal',
   viewport: { columns: 100, rows: 30 }, props: { hasSurvey: false, isWorking: false, maxRows: 15, bodyColumns: 95,
     scroll: { offset: 0, bodyRows: 14 }, view: {} } } as const
@@ -90,6 +97,12 @@ test('hadith of the day sits above the prompt until the first message', async ($
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^~ .+ · (Bukhari|Muslim) \S+$/ })).toBeDefined()
   await $.turn.start({ text: 'hi', turnId: 't1' })
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+})
+test('the desktop band gets no card until it has been checked there', async ($, on) => {
+  mock.clock(on)
+  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
 test('a survey in the band is left alone', async ($, on) => {

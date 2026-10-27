@@ -38,15 +38,84 @@ When Claude is done:
 
 ## Install
 
-Needs Claude Code **2.1.299 or newer**. Check with `claude --version`, and run
-`claude update` if yours is older.
+It takes about a minute. You only need Claude Code. You do not need to
+download or clone anything yourself.
 
-In Claude Code:
+### Step 1: Check your Claude Code version
+
+Open your terminal and run:
+
+```
+claude --version
+```
+
+You need **2.1.310 or newer**. If yours is older, run `claude update` first.
+
+### Step 2: Add this plugin's catalog
+
+This tells Claude Code where to find the plugin (this GitHub repo). Run in
+your terminal:
+
+```
+claude plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin
+```
+
+### Step 3: Install the plugin
+
+```
+claude plugin install tadhkir-loop@tadhkir-loop
+```
+
+The first `tadhkir-loop` is the plugin, the one after `@` is the catalog
+from Step 2. If it says "2 userConfig options not yet set", that is fine:
+both switches are on by default, and you can change them later in `/config`.
+
+### Step 4: Start Claude Code again
+
+Close any Claude Code that is open, then start it again with `claude`. You
+should see a **Bismillah** line, and a hadith just above the prompt. Send
+any message and watch the spinner.
+
+### Prefer to do it inside Claude Code?
+
+Steps 2 and 3 also work as slash commands inside a running Claude Code:
 
 ```
 /plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin
 /plugin install tadhkir-loop@tadhkir-loop
 ```
+
+Then restart Claude Code, as in Step 4.
+
+### Update to a new version
+
+```
+claude plugin marketplace update tadhkir-loop
+claude plugin update tadhkir-loop@tadhkir-loop
+```
+
+Restart Claude Code to use the new version.
+
+### Remove it
+
+```
+claude plugin uninstall tadhkir-loop@tadhkir-loop
+claude plugin marketplace remove tadhkir-loop
+```
+
+### Not working?
+
+- **Nothing changed after installing:** restart Claude Code. A plugin loads
+  when Claude Code starts.
+- **Still nothing:** run `claude --version` and make sure it is 2.1.310 or
+  newer, then run `claude plugin list` and check that `tadhkir-loop` is there
+  and enabled.
+- **You use the Desktop app or VS Code:** zikr, the hadith and the
+  Alhamdulillah line show only in the terminal for now. In the Desktop app
+  you will see just the Bismillah line. Plugins do not load in WSL sessions
+  of the Desktop app; Claude Code run in a WSL terminal works as normal.
+- Still stuck? Open an issue on this repo with your `claude --version` and
+  your operating system.
 
 ## Settings
 
@@ -60,7 +129,8 @@ For a cleaner look, turn off **Show tips** in `/config`. That hides Claude
 Code's own tip line, which otherwise sits between the spinner and the hadith.
 
 In a narrow window the plugin makes room on its own: the meaning is left out
-when the line would wrap, and the hadith is hidden under 60 columns.
+when the line would wrap, and the hadith under the spinner is hidden when the
+window is narrower than 60 columns.
 
 ## What is inside
 
@@ -78,6 +148,12 @@ on sunnah.com, for example `https://sunnah.com/bukhari:2446`.
 - Reads only its own content file. It never reads your project files.
 - No telemetry. It collects nothing about you.
 - No third-party code at runtime.
+
+Claude Code plugins can run code on your machine, so only install ones you
+trust. You can check what this one does yourself: after Step 2, run
+`claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
+`calls:` line lists only `$.clock` (timing) and `$.ui` (drawing) calls, no file,
+shell or network access.
 
 ## Content sources and credits
 

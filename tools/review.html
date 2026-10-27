@@ -45,7 +45,8 @@
     Keys: <kbd>A</kbd> approve, <kbd>R</kbd> reject, <kbd>←</kbd> <kbd>→</kbd> move.</p>
 
   <div class="bar">
-    <input type="file" id="file" accept=".json" style="width:auto">
+    <span>1. Candidates <input type="file" id="file" accept=".json" style="width:auto"></span>
+    <span>2. Current <code>data/content.js</code> <input type="file" id="current" accept=".js" style="width:auto"></span>
     <button id="download" disabled>Download content.js</button>
   </div>
   <div class="bar" id="tabs"></div>
@@ -61,7 +62,16 @@ const TABS = ['zikr', 'names', 'hadith']
 let data = null          // candidates.json
 let tab = 'zikr'
 let pos = 0
-let state = readState()  // { "<tab>:<key>": { status, approvedAt, edits } }
+let current = null       // the data/content.js that ships now
+let state = readState()  // { "<tab>:<key>": { status, approvedAt, edits, snapshot } }
+
+// What ships for each kind; `snapshot` holds exactly this, taken when approved
+const PICK = {
+  zikr: (v) => ({ id: v.id, en: v.en, meaning: v.meaning, ar: v.ar ?? '' }),
+  names: (v) => ({ number: v.number, en: v.en, meaning: v.meaning, ar: v.ar ?? '' }),
+  hadith: (v) => ({ id: v.id, collection: v.collection, number: String(v.number), narrator: v.narrator,
+    en: v.en, original: v.original, ar: v.ar ?? '', url: v.url }),
+}
 
 function readState() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {} } catch { return {} }
@@ -72,7 +82,8 @@ function saveState() {
 
 const keyOf = (t, item) => t + ':' + (t === 'names' ? item.number : item.id)
 const entry = (t, item) => (state[keyOf(t, item)] ??= { edits: {} })
-const value = (t, item) => ({ ...item, ...entry(t, item).edits })
+// The approved text wins over the candidate, so a re-fetch can't change it unseen
+const value = (t, item) => ({ ...item, ...entry(t, item).snapshot, ...entry(t, item).edits })
 const items = () => data?.[tab] ?? []
 
 function formatHadith(h) {
@@ -151,9 +162,11 @@ function render() {
   card.className = 'card'
 
   const status = document.createElement('div')
-  const s = entry(tab, item).status
+  const { status: s, snapshot } = entry(tab, item)
+  const editedSince = s === 'approved' && snapshot &&
+    JSON.stringify(PICK[tab](v)) !== JSON.stringify(PICK[tab]({ ...item, ...snapshot }))
   status.className = 'status ' + (s ?? '')
-  status.textContent = s ? s : 'not decided'
+  status.textContent = editedSince ? 'approved, but edited since: press A to approve the edit' : s ?? 'not decided'
   card.append(status)
 
   if (tab === 'hadith') {
@@ -224,25 +237,35 @@ function decide(status) {
   if (status === 'approved') {
     const d = new Date()
     e.approvedAt = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
+    e.snapshot = { ...PICK[tab](value(tab, item)), ...(tab === 'hadith' ? { approvedAt: e.approvedAt } : {}) }
+  } else delete e.snapshot
   saveState()
   const next = items().findIndex((it, i) => i > pos && !entry(tab, it).status)
   if (next >= 0) pos = next
   render()
 }
 
-function approved(t, pick) {
-  return (data[t] ?? []).filter((it) => entry(t, it).status === 'approved').map((it) => pick(value(t, it), entry(t, it)))
+function approved(t) {
+  const seen = new Set()
+  const out = []
+  for (const it of data[t] ?? []) {
+    const e = entry(t, it)
+    seen.add(keyOf(t, it))
+    if (e.status !== 'approved') continue
+    // Approvals saved before snapshots existed fall back to the values on screen
+    out.push(e.snapshot ?? { ...PICK[t](value(t, it)), ...(t === 'hadith' ? { approvedAt: e.approvedAt } : {}) })
+  }
+  // Approved, but no longer among the candidates (a fetch rule changed): still ships
+  for (const [k, e] of Object.entries(state)) {
+    if (k.startsWith(t + ':') && !seen.has(k) && e.status === 'approved' && e.snapshot) out.push(e.snapshot)
+  }
+  return out
 }
 
 function download() {
-  const content = {
-    version: 1,
-    zikr: approved('zikr', (v) => ({ id: v.id, en: v.en, meaning: v.meaning, ar: v.ar ?? '' })),
-    names: approved('names', (v) => ({ number: v.number, en: v.en, meaning: v.meaning, ar: v.ar ?? '' })),
-    hadith: approved('hadith', (v, e) => ({ id: v.id, collection: v.collection, number: String(v.number),
-      narrator: v.narrator, en: v.en, original: v.original, ar: v.ar ?? '', url: v.url, approvedAt: e.approvedAt })),
-  }
+  if (!current && !confirm('You have not picked the current data/content.js (step 2). ' +
+    'The download will hold only what this browser approved, which may drop content that ships now. Download anyway?')) return
+  const content = { version: 1, zikr: approved('zikr'), names: approved('names'), hadith: approved('hadith') }
   const text = '// Approved content. Replaced by the download from tools/review.html.\nexport default ' +
     JSON.stringify(content, null, 2) + '\n'
   const a = document.createElement('a')
@@ -255,8 +278,29 @@ function download() {
 document.getElementById('file').addEventListener('change', async (ev) => {
   const file = ev.target.files[0]
   if (!file) return
-  data = JSON.parse(await file.text())
+  try { data = JSON.parse(await file.text()) } catch { alert('That is not candidates.json. Pick tools/candidates.json.'); return }
   pos = 0
+  render()
+})
+// What ships now is the approved list. Anything else this browser approved
+// (for example a hadith removed from data/content.js by hand) goes back to "not decided".
+document.getElementById('current').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0]
+  if (!file) return
+  try { current = JSON.parse((await file.text()).replace(/^[\s\S]*?export default/, '')) }
+  catch { alert('Could not read that file. Pick data/content.js from this project.'); return }
+  const shipped = new Set()
+  for (const t of TABS) {
+    for (const it of current[t] ?? []) {
+      const k = keyOf(t, it)
+      shipped.add(k)
+      state[k] = { status: 'approved', approvedAt: it.approvedAt, edits: {}, snapshot: it }
+    }
+  }
+  for (const [k, e] of Object.entries(state)) {
+    if (e.status === 'approved' && !shipped.has(k)) { delete e.status; delete e.snapshot }
+  }
+  saveState()
   render()
 })
 document.getElementById('download').addEventListener('click', download)

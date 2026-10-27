@@ -1,7 +1,7 @@
 // Tadhkir Loop: zikr and names in the spinner, a hadith under it,
-// Alhamdulillah on the done line, Bismillah at startup.
+// Alhamdulillah on the done line, Bismillah and the hadith of the day at startup.
 import raw from '../data/content.js'
-import { loadContent, wordAt, hadithOfDay, randomHadith, formatHadith,
+import { loadContent, wordAt, hadithOfDay, randomHadith, hadithParts,
   formatDuration, spinnerParts } from './picker.js'
 
 const ROTATE_MS = 8000
@@ -28,6 +28,8 @@ export function register(on, options) {
     showMeaning: options?.show_meaning !== false,
   }
   const poolLength = CONTENT.zikr.length + CONTENT.names.length
+  // Hadith of the day above the prompt, hidden once the first message goes
+  let showCard = opts.showHadith
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
@@ -39,6 +41,10 @@ export function register(on, options) {
     timer = $.clock.every(ROTATE_MS, () => {
       if (mainTurnId) $.ui.invalidate('ui.render')
     })
+    if (showCard) {
+      showCard = false
+      $.ui.invalidate('ui.render')
+    }
     return next(e)
   }).catch(() => undefined)
 
@@ -73,8 +79,21 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.start', async ($, e, next) => {
-    const h = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
-    $.ui.log('Bismillah' + (h ? ' · Hadith of the day: ' + formatHadith(h) : ''))
+    $.ui.log('Bismillah')
     return next(e)
+  }).catch(() => undefined)
+
+  // The log line can't hold line breaks, so the hadith of the day gets the band
+  // above the prompt, until the first message
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const h = showCard && !e.props.hasSurvey && !e.props.view?.agentId
+      ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
+    if (!h) return next(e)
+    const { quote, source } = hadithParts(h)
+    const { Box, Text } = $.ui.resolve(e)
+    return Box({ flexDirection: 'column', paddingLeft: 2, children: [
+      Text({ dimColor: true, italic: true, children: [quote] }),
+      Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [source] })] }),
+    ] })
   }).catch(() => undefined)
 }

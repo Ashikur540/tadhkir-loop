@@ -50,8 +50,8 @@ export function randomHadith(content, rand) {
   return hadith.length ? hadith[Math.floor(rand() * hadith.length)] : null
 }
 
-export function formatHadith(h) {
-  return `"${h.en}" (${h.narrator}, ${h.collection} ${h.number})`
+export function hadithParts(h) {
+  return { quote: `"${h.en}"`, source: `~ ${h.narrator} · ${h.collection} ${h.number}` }
 }
 
 export function formatDuration(ms) {
@@ -68,7 +68,6 @@ export function spinnerParts(entry, hadith, opts, columns) {
   const show = opts.showHadith && hadith && wide(MIN_HADITH_COLUMNS)
   return {
     suffix: opts.showMeaning && wide(2 + entry.en.length + suffix.length + SPINNER_EXTRA) ? suffix : null,
-    quote: show ? `"${hadith.en}"` : null,
-    source: show ? `~ ${hadith.narrator} · ${hadith.collection} ${hadith.number}` : null,
+    ...(show ? hadithParts(hadith) : { quote: null, source: null }),
   }
 }

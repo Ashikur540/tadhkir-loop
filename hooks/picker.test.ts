@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { loadContent, wordAt, localDayNumber, hadithOfDay, randomHadith,
-  formatHadith, formatDuration, spinnerParts } from './picker.js'
+  hadithParts, formatDuration, spinnerParts } from './picker.js'
 
 const H = (n: string) => ({ id: 'bukhari-' + n, collection: 'Bukhari', number: n,
   narrator: 'Test Narrator', en: 'Fixture saying ' + n + '.', url: 'https://sunnah.com/bukhari:' + n })
@@ -44,8 +44,8 @@ test('randomHadith uses the given random source', () => {
   expect(randomHadith(c, () => 0)!.number).toBe('1')
   expect(randomHadith(c, () => 0.99)!.number).toBe('3')
 })
-test('formatHadith and formatDuration', () => {
-  expect(formatHadith(H('7') as any)).toBe('"Fixture saying 7." (Test Narrator, Bukhari 7)')
+test('hadithParts and formatDuration', () => {
+  expect(hadithParts(H('7') as any)).toEqual({ quote: '"Fixture saying 7."', source: '~ Test Narrator · Bukhari 7' })
   expect(formatDuration(0)).toBe('0s')
   expect(formatDuration(41900)).toBe('41s')
   expect(formatDuration(68000)).toBe('1m 8s')

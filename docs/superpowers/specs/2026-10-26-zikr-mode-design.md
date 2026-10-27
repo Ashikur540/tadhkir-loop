@@ -1,11 +1,11 @@
-# Zikr Mode: design
+# Tadhkir Loop: design
 
 Date: 2026-10-26
-Status: draft, waiting for review
+Status: draft, waiting for final approval
 
 ## 1. Why
 
-Coders spend a lot of time watching Claude Code work. Zikr Mode turns that
+Coders spend a lot of time watching Claude Code work. Tadhkir Loop turns that
 waiting time into a small moment of remembrance. Instead of words like
 "Baking" or "Pondering", the screen shows zikr, the 99 names of Allah with
 their meaning, and short authentic hadith. The coder reads them while they
@@ -52,7 +52,7 @@ Over time the product should do three things (in phases):
 
 | Topic | Decision |
 |---|---|
-| Plugin name | `zikr-mode`, display name "Zikr Mode" (names starting with `claude-` are reserved) |
+| Plugin name | `tadhkir-loop`, display name "Tadhkir Loop" (names starting with `claude-` are reserved). Renamed from the working name "Zikr Mode" to match the repo |
 | Technology | A Claude Code **mod** (plugin with a hooks module), not settings JSON |
 | Surfaces | Terminal first, Desktop app second |
 | English style | Transliteration ("SubhanAllah"), not translation |
@@ -61,14 +61,14 @@ Over time the product should do three things (in phases):
 | Meaning | On the spinner line after the word (`Ar-Rahman · The Most Merciful…`), changes with it. Chosen after the spike showed Claude's own `Tip:` line sits between the spinner and any line we add below it |
 | Hadith line | One hadith per turn, fixed while the turn runs |
 | Done line | Always "Alhamdulillah · <duration>" |
-| Startup | One line: "Bismillah · Hadith of the day: ..." (same hadith all day). Claude Code prefixes it with the plugin name: `zikr-mode: Bismillah · ...` |
+| Startup | One line: "Bismillah · Hadith of the day: ..." (same hadith all day). Claude Code prefixes it with the plugin name: `tadhkir-loop: Bismillah · ...` |
 | Hadith rule | Bukhari and Muslim only, always with reference |
 | Reference numbers | Shown number is the **sunnah.com** number, the one users will look up. The reviewer confirms it against the sunnah.com page |
 | Hadith format | Prophet's ﷺ quoted words + narrator + reference: `"..." (Abu Huraira, Bukhari 1234)` |
 | Picking | Script finds short candidates, owner approves each in a local review page |
 | Content storage | Bundled JSON inside the plugin, no runtime network |
 | Settings | Show hadith, Show meaning. Language switch removed from Phase 1 (only one option), comes back in Phase 2 with Arabic |
-| Distribution | Public GitHub repo, `/plugin marketplace add <owner>/zikr-mode` |
+| Distribution | Public repo https://github.com/Ashikur540/tadhkir-loop-claude-plugin. Install: `/plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin`, then `/plugin install tadhkir-loop@tadhkir-loop` |
 
 ## 4. Builder's calls (made by Claude, owner can change)
 
@@ -130,15 +130,16 @@ Over time the product should do three things (in phases):
 ## 6. Architecture
 
 ```
-zikr-mode/                       (repo root, public on GitHub)
+tadhkir-loop-claude-plugin/      (repo root, public on GitHub)
 ├── .claude-plugin/
 │   ├── plugin.json              name, version, userConfig (2 switches)
-│   └── marketplace.json         repo is its own marketplace, source "./"
+│   └── marketplace.json         marketplace "tadhkir-loop", one plugin, source "./"
 ├── hooks/
 │   ├── hooks.json               { "modules": ["./register.js"] }
 │   ├── register.js              the mod: wires events to picker
 │   ├── picker.js                pure functions, no Claude Code imports
-│   └── picker.test.ts           tests for picker
+│   ├── picker.test.ts           tests for picker
+│   └── register.test.ts         tests for timer and fallback
 ├── data/
 │   └── content.json             approved content, shipped
 ├── tools/                       owner's content workshop, not used at runtime
@@ -187,8 +188,10 @@ Every hadith in this file was approved by a human in the review page.
   pool entry, so the word and its meaning can never mismatch. The pool is
   zikr + names. Index = `(turnOffset + floor(elapsedMs / 8000)) % pool.length`,
   where `elapsedMs` is time since the turn started.
-- `hadithOfDay(content, date)` returns the hadith. Index = days since epoch
-  (local date) `% hadith.length`. Known and accepted: when an update adds
+- `hadithOfDay(content, date)` returns the hadith. Index = whole days from
+  the epoch to the local calendar date, counted as
+  `Date.UTC(year, month, day) / 86400000` from the local year, month and day,
+  so daylight-saving changes can't shift the day. Then `% hadith.length`. Known and accepted: when an update adds
   hadith, the hadith of the day can change in the middle of that day.
 - `randomHadith(content, rand)` returns one hadith for a turn.
 - `formatHadith(h)` returns `"<en>" (<narrator>, <collection> <number>)`.
@@ -201,11 +204,15 @@ Every hadith in this file was approved by a human in the review page.
 
 - Load `data/content.json` once. If `loadContent` returns `null`, register
   nothing, so Claude Code behaves normally.
-- `turn.start`: save the turn start time, a random `turnOffset`, and the
-  turn's hadith (`randomHadith`). Start `$.clock.every(8000, () =>
-  $.ui.invalidate('ui.render'))` so the spinner redraws with the next word.
-- `turn.complete`: `timer.cancel()`, so nothing redraws while idle.
-- `session.end`: `timer.cancel()` too, in case a turn never completed.
+- `turn.start`: cancel any timer left from an earlier turn, set
+  `turnActive = true`, save the turn start time, a random `turnOffset`, and
+  the turn's hadith (`randomHadith`). Start `$.clock.every(8000, tick)`,
+  where `tick` calls `$.ui.invalidate('ui.render')` only while
+  `turnActive` is true.
+- `turn.complete`: `turnActive = false`, `timer.cancel()`. This event fires
+  for every way a turn ends (`answer`, `aborted`, `refusal`, `error`).
+- `session.end`: same cleanup, as a second safety net. Timers also stop
+  when the process exits, so no timer can outlive the session.
 - `ui.render` `{ component: 'Spinner' }`: if `e.props.message` is set
   (Claude Code is showing a status of its own), pass the event on unchanged.
   Otherwise call `next` with `word` = `wordAt(...).en` and, if Show meaning
@@ -216,9 +223,13 @@ Every hadith in this file was approved by a human in the review page.
   `Alhamdulillah · <formatDuration(durationMs)>`.
 - `session.start`: one `$.ui.log` call: `"Bismillah"`, plus
   `" · Hadith of the day: " + formatHadith(hadithOfDay(...))` if Show hadith
-  is on. One call, so the `zikr-mode:` prefix shows once. It fires again
+  is on. One call, so the `tadhkir-loop:` prefix shows once. It fires again
   after a plugin reload, which is fine.
-- Every hook has a `.catch` that falls back to `next(e)`.
+- Every hook has `.catch(() => undefined)`. Per the types, a `.catch`
+  handler that returns `undefined` means "this hook is absent", so Claude
+  Code carries on with its own behaviour for that event. This is correct
+  for every event type, unlike calling `next(e)` again (the hook may
+  already have called it).
 
 ### 6.4 `tools/` (content workshop)
 
@@ -271,13 +282,13 @@ and default `english`, so existing users keep English.
 
 - Missing or broken `content.json`: no hooks registered, Claude Code looks
   normal.
-- Any hook throws or times out: `.catch` returns `next(e)`, so Claude Code
-  draws its own version.
+- Any hook throws or times out: `.catch` returns `undefined`, so Claude
+  Code acts as if the hook were not there and draws its own version. The
+  timer keeps asking for redraws until the turn ends, which is harmless
+  (redraws are throttled) and stops at `turn.complete`.
 - Empty hadith list: hadith lines are skipped, zikr still shows.
 - `loadContent` drops single bad records (missing `en`, `meaning`,
   reference) instead of failing the whole file.
-- A hook throwing during render must not leave the timer running forever:
-  the timer is stopped on `turn.complete` and on `session.end`.
 - Mods need Claude Code 2.1.299+. On older versions the README tells the
   user to update.
 
@@ -288,6 +299,19 @@ and default `english`, so existing users keep English.
 - No telemetry, no user data collected.
 - No third-party runtime dependencies.
 
+## 8.2 Content sources and licensing (release gate)
+
+- Hadith text: fawazahmed0/hadith-api (repo licensed Unlicense). The English
+  translations in it are by **Muhsin Khan** (Bukhari) and **Abdul Hamid
+  Siddiqui** (Muslim); the repo does not state that it holds rights to
+  those translations.
+- 99 names: aladhan.com API, then hand-edited spelling and meaning.
+- README credits both translators and both APIs, and links every hadith to
+  sunnah.com.
+- **Before the public release**: confirm we may redistribute the short
+  excerpts we ship. If permission is unclear, switch to a translation with a
+  clear open license. This does not block building or private testing.
+
 ## 9. Testing
 
 - **Spike: done** (see section 5). The screens in the appendix are
@@ -296,6 +320,12 @@ and default `english`, so existing users keep English.
   meaning always matches word; hadith of day is stable within a day and
   changes next day; `loadContent` returns `null` on bad input;
   `formatDuration` and `formatHadith` output.
+- `hooks/register.test.ts` (with `claude-code/testing`): the timer is
+  cancelled when a turn completes; a timer tick after the turn ended does
+  not call `$.ui.invalidate`; an empty or fully invalid hadith list still
+  shows zikr and draws no hadith line.
+- `picker.test.ts` also covers: hadith of day stays the same across a
+  daylight-saving change (e.g. 2026-03-29 and 2026-10-25 in Europe).
 - `tools/extract.test.ts`: a few real API samples (with narrator, without
   quote, very long) give the expected result or `null`.
 - `claude plugin validate --strict` passes.
@@ -314,7 +344,7 @@ and default `english`, so existing users keep English.
 
 ## Appendix: screens (confirmed in the terminal by the spike)
 
-Lines from Zikr Mode are dim except the spinner word, which keeps Claude
+Lines from Tadhkir Loop are dim except the spinner word, which keeps Claude
 Code's own color. The hadith shown is a real one (Bukhari 1, from the API);
 the shipped list holds only reviewed hadith.
 
@@ -325,7 +355,7 @@ the shipped list holds only reviewed hadith.
 ▝▜█████▛▘  Opus 5.5 · Claude Max
   ▘▘ ▝▝    ~/projects/my-app
 
-  zikr-mode: Bismillah · Hadith of the day: "The reward of deeds depends
+  tadhkir-loop: Bismillah · Hadith of the day: "The reward of deeds depends
   upon the intentions and every person will get the reward according to
   what he has intended." (Umar bin Al-Khattab, Bukhari 1)
 ```

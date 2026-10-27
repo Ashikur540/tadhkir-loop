@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tadhkir Loop Review</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --card: #fff; --text: #1d1d1b; --muted: #6b6a66; --line: #dddbd3;
+    --ok: #1f7a4d; --no: #b3261e; --accent: #2f5d8a; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171716; --card: #222220; --text: #ecebe6; --muted: #a3a29c; --line: #3a3935;
+      --ok: #5cc28f; --no: #f2867e; --accent: #8db8e6; --warn: #e3b341; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .muted { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+  button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  button.ok { border-color: var(--ok); color: var(--ok); }
+  button.no { border-color: var(--no); color: var(--no); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .status { font-weight: 600; }
+  .status.approved { color: var(--ok); } .status.rejected { color: var(--no); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 4px; }
+  input, textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  textarea { min-height: 72px; resize: vertical; }
+  .original { white-space: pre-wrap; background: var(--bg); border-radius: 6px; padding: 10px; max-height: 220px; overflow: auto; }
+  .preview { font-family: ui-monospace, monospace; font-size: 13px; background: var(--bg); padding: 10px; border-radius: 6px; }
+  .warn { color: var(--warn); font-size: 13px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tadhkir Loop review</h1>
+  <p class="muted">Only what you approve here ships. Check every hadith against its sunnah.com page: wording, number and context.
+    Keys: <kbd>A</kbd> approve, <kbd>R</kbd> reject, <kbd>←</kbd> <kbd>→</kbd> move.</p>
+
+  <div class="bar">
+    <input type="file" id="file" accept=".json" style="width:auto">
+    <button id="download" disabled>Download content.js</button>
+  </div>
+  <div class="bar" id="tabs"></div>
+  <div class="bar"><span id="progress" class="muted"></span></div>
+  <div id="view"></div>
+</main>
+
+<script>
+const STORE_KEY = 'tadhkir-review-v1'
+const MAX_HADITH = 200
+const TABS = ['zikr', 'names', 'hadith']
+
+let data = null          // candidates.json
+let tab = 'zikr'
+let pos = 0
+let state = readState()  // { "<tab>:<key>": { status, approvedAt, edits } }
+
+function readState() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {} } catch { return {} }
+}
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)) } catch {}
+}
+
+const keyOf = (t, item) => t + ':' + (t === 'names' ? item.number : item.id)
+const entry = (t, item) => (state[keyOf(t, item)] ??= { edits: {} })
+const value = (t, item) => ({ ...item, ...entry(t, item).edits })
+const items = () => data?.[tab] ?? []
+
+function formatHadith(h) {
+  return `"${h.en}" (${h.narrator}, ${h.collection} ${h.number})`
+}
+
+function field(name, val, { area = false, readonly = false } = {}) {
+  const el = document.createElement(area ? 'textarea' : 'input')
+  el.value = val ?? ''
+  el.dataset.field = name
+  el.readOnly = readonly
+  el.addEventListener('input', () => {
+    const item = items()[pos]
+    entry(tab, item).edits[name] = el.value
+    saveState()
+    renderPreview()
+  })
+  return el
+}
+
+function labelled(text, el) {
+  const wrap = document.createElement('div')
+  const label = document.createElement('label')
+  label.textContent = text
+  wrap.append(label, el)
+  return wrap
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('tabs')
+  tabs.replaceChildren(...TABS.map((t) => {
+    const b = document.createElement('button')
+    b.textContent = `${t} (${data?.[t]?.length ?? 0})`
+    b.setAttribute('aria-pressed', String(t === tab))
+    b.onclick = () => { tab = t; pos = 0; render() }
+    return b
+  }))
+}
+
+function renderProgress() {
+  const list = items()
+  const count = (s) => list.filter((it) => entry(tab, it).status === s).length
+  const a = count('approved'), r = count('rejected')
+  document.getElementById('progress').textContent =
+    list.length ? `${tab}: ${pos + 1} of ${list.length} · approved ${a} · rejected ${r} · left ${list.length - a - r}` : ''
+}
+
+function renderPreview() {
+  const box = document.getElementById('preview')
+  if (!box) return
+  const v = value(tab, items()[pos])
+  if (tab === 'hadith') {
+    box.textContent = '  ' + formatHadith(v)
+    document.getElementById('lenwarn').textContent =
+      v.en.length > MAX_HADITH ? `Shown text is ${v.en.length} characters, over ${MAX_HADITH}.` : ''
+  } else {
+    box.textContent = `✻ ${v.en} · ${v.meaning}…`
+  }
+}
+
+function render() {
+  renderTabs()
+  renderProgress()
+  const view = document.getElementById('view')
+  const list = items()
+  document.getElementById('download').disabled = !data
+  if (!list.length) { view.replaceChildren(); return }
+  const item = list[pos]
+  const v = value(tab, item)
+  const card = document.createElement('div')
+  card.className = 'card'
+
+  const status = document.createElement('div')
+  const s = entry(tab, item).status
+  status.className = 'status ' + (s ?? '')
+  status.textContent = s ? s : 'not decided'
+  card.append(status)
+
+  if (tab === 'hadith') {
+    const orig = document.createElement('div')
+    orig.className = 'original'
+    orig.textContent = item.original
+    card.append(labelled(`Full text (${item.collection} ${item.number} in the API)`, orig))
+    card.append(labelled('Shown text (exactly what users see)', field('en', v.en, { area: true })))
+    const row = document.createElement('div')
+    row.className = 'row'
+    row.append(labelled('Narrator', field('narrator', v.narrator)), labelled('sunnah.com number', field('number', v.number)))
+    card.append(row)
+    const url = field('url', v.url)
+    const open = document.createElement('a')
+    open.href = v.url
+    open.target = '_blank'
+    open.rel = 'noopener'
+    open.textContent = 'Open on sunnah.com'
+    url.addEventListener('input', () => { open.href = url.value })
+    card.append(labelled('sunnah.com link', url), open)
+    const warn = document.createElement('div')
+    warn.id = 'lenwarn'
+    warn.className = 'warn'
+    card.append(warn)
+  } else {
+    if (tab === 'names') {
+      const src = document.createElement('div')
+      src.className = 'muted'
+      src.textContent = `#${item.number} · API spelling: ${item.sourceTransliteration}`
+      card.append(src)
+    }
+    card.append(labelled('Spelling (transliteration)', field('en', v.en)))
+    card.append(labelled('Meaning', field('meaning', v.meaning)))
+  }
+  const preview = document.createElement('div')
+  preview.id = 'preview'
+  preview.className = 'preview'
+  card.append(labelled('Preview in the terminal', preview))
+
+  const buttons = document.createElement('div')
+  buttons.className = 'bar'
+  const mk = (text, cls, fn) => { const b = document.createElement('button'); b.textContent = text; b.className = cls; b.onclick = fn; return b }
+  buttons.append(mk('← Back', '', () => move(-1)), mk('Approve (A)', 'ok', () => decide('approved')),
+    mk('Reject (R)', 'no', () => decide('rejected')), mk('Next →', '', () => move(1)))
+  card.append(buttons)
+  view.replaceChildren(card)
+  renderPreview()
+}
+
+function move(step) {
+  pos = Math.min(Math.max(pos + step, 0), items().length - 1)
+  render()
+}
+
+// The mod drops any item missing one of these, so never approve one
+const REQUIRED = { zikr: ['en', 'meaning'], names: ['en', 'meaning'], hadith: ['en', 'narrator', 'number', 'url'] }
+
+function decide(status) {
+  const item = items()[pos]
+  if (!item) return
+  const empty = REQUIRED[tab].filter((k) => !String(value(tab, item)[k] ?? '').trim())
+  if (status === 'approved' && empty.length) {
+    document.querySelector('.status').textContent = 'Cannot approve, empty: ' + empty.join(', ')
+    return
+  }
+  const e = entry(tab, item)
+  e.status = status
+  if (status === 'approved') {
+    const d = new Date()
+    e.approvedAt = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  saveState()
+  const next = items().findIndex((it, i) => i > pos && !entry(tab, it).status)
+  if (next >= 0) pos = next
+  render()
+}
+
+function approved(t, pick) {
+  return (data[t] ?? []).filter((it) => entry(t, it).status === 'approved').map((it) => pick(value(t, it), entry(t, it)))
+}
+
+function download() {
+  const content = {
+    version: 1,
+    zikr: approved('zikr', (v) => ({ id: v.id, en: v.en, meaning: v.meaning, ar: v.ar ?? '' })),
+    names: approved('names', (v) => ({ number: v.number, en: v.en, meaning: v.meaning, ar: v.ar ?? '' })),
+    hadith: approved('hadith', (v, e) => ({ id: v.id, collection: v.collection, number: String(v.number),
+      narrator: v.narrator, en: v.en, original: v.original, ar: v.ar ?? '', url: v.url, approvedAt: e.approvedAt })),
+  }
+  const text = '// Approved content. Replaced by the download from tools/review.html.\nexport default ' +
+    JSON.stringify(content, null, 2) + '\n'
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }))
+  a.download = 'content.js'
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+document.getElementById('file').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0]
+  if (!file) return
+  data = JSON.parse(await file.text())
+  pos = 0
+  render()
+})
+document.getElementById('download').addEventListener('click', download)
+document.addEventListener('keydown', (ev) => {
+  if (!data || ev.target.matches('input, textarea') || ev.metaKey || ev.ctrlKey || ev.altKey) return
+  if (ev.key === 'a' || ev.key === 'A') decide('approved')
+  else if (ev.key === 'r' || ev.key === 'R') decide('rejected')
+  else if (ev.key === 'ArrowRight') move(1)
+  else if (ev.key === 'ArrowLeft') move(-1)
+})
+render()
+</script>
+</body>
+</html>

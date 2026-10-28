@@ -105,6 +105,21 @@ test('the desktop band gets no card until it has been checked there', async ($, 
   const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
+test('the card keeps what other mods draw in the band', async ($, on) => {
+  mock.clock(on)
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['other band'] }))
+  const ui = await $.ui.mount(BAND)
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'other band' })).toBeDefined()
+})
+test('in a narrow window every spinner word fits on one line', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.ui.mount({ ...SPINNER, viewport: { columns: 80, rows: 30 } })
+  for (let i = 0; i < 115; i++) await clock.advance(8000)
+  expect(seen.length).toBeGreaterThan(100)
+  expect(seen.filter((w) => 2 + w.length + 60 > 80)).toEqual([])
+})
 test('a survey in the band is left alone', async ($, on) => {
   mock.clock(on)
   on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))

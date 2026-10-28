@@ -66,3 +66,20 @@ test('spinnerParts honours switches, width and long lines', () => {
   expect(spinnerParts(long, h, on, 70).suffix).toBe(null)                        // would wrap: drop meaning
   expect(spinnerParts(long, h, on, 160).suffix).not.toBe(null)
 })
+test('wordAt skips words that would wrap the spinner line, and gives null when none fit', () => {
+  const long = 'La hawla wa la quwwata illa billah'
+  const c = loadContent({ ...RAW, zikr: [{ id: 'la-hawla', en: long, meaning: 'x' }, ...RAW.zikr] })!
+  for (let t = 0; t < 6; t++) expect(wordAt(c, t * 8000, 0, 80)!.en).not.toBe(long)
+  expect(wordAt(c, 0, 0, 120)!.en).toBe(long)
+  expect(wordAt(c, 0, 0, 40)).toBe(null)
+  expect(wordAt(c, 0, 0, undefined)!.en).toBe(long)                             // not measured: treat as wide
+})
+test('the spinner line leaves room for Claude Code\'s longest status', () => {
+  const e = { en: "Al-Muta'ali", meaning: 'The Supreme One' }
+  const status = ' (1h 5m 28s · ↓ 128.7k tokens · thinking with high effort)'
+  const off = { showHadith: false, showMeaning: true }
+  for (const cols of [80, 90, 100, 120, 160]) {
+    const suffix = spinnerParts(e, null, off, cols).suffix ?? '…'
+    expect(2 + e.en.length + suffix.length + status.length).toBeLessThanOrEqual(cols)
+  }
+})

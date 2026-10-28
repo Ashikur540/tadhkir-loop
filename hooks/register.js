@@ -61,7 +61,8 @@ export function register(on, options) {
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     // On the desktop the word is Claude's real step ("Creating notes.md"); keep it
     if (e.surface !== 'terminal' || e.props.message) return next(e)
-    const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset)
+    const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset, e.viewport?.columns)
+    if (!entry) return next(e)
     const parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
     if (!parts.quote) return theirs
@@ -95,9 +96,12 @@ export function register(on, options) {
     if (!h) return next(e)
     const { quote, source } = hadithParts(h)
     const { Box, Text } = $.ui.resolve(e)
-    return Box({ flexDirection: 'column', paddingLeft: 2, children: [
+    const card = Box({ flexDirection: 'column', paddingLeft: 2, children: [
       Text({ dimColor: true, italic: true, children: [quote] }),
       Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [source] })] }),
     ] })
+    // Keep other mods' bands, as the band docs ask
+    const theirs = await next(e)
+    return Box({ flexDirection: 'column', children: theirs ? [card, theirs] : [card] })
   }).catch(() => undefined)
 }

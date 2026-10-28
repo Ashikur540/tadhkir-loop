@@ -6,8 +6,10 @@
 
 const ROTATE_MS = 8000
 const MIN_HADITH_COLUMNS = 60
-// Room left for Claude Code's own "(26s · thinking)" part of the spinner line
-const SPINNER_EXTRA = 30
+// Room left for Claude Code's own part of the spinner line, which can grow to
+// " (1h 5m 28s · ↓ 128.7k tokens · thinking with high effort)". A line wider than
+// the window wraps, and the fullscreen renderer then leaves stale rows behind.
+const SPINNER_EXTRA = 60
 
 const filled = (v) => typeof v === 'string' && v.trim() !== ''
 const list = (v) => (Array.isArray(v) ? v : [])
@@ -26,9 +28,12 @@ export function loadContent(raw) {
   return { zikr, names, hadith: list(raw.hadith).filter(isHadith) }
 }
 
-/** @returns {Entry} */
-export function wordAt(content, elapsedMs, turnOffset) {
+// Only words that fit on one spinner line; null when none do
+/** @returns {Entry | null} */
+export function wordAt(content, elapsedMs, turnOffset, columns) {
   const pool = [...content.zikr, ...content.names]
+    .filter((x) => columns === undefined || 2 + x.en.length + SPINNER_EXTRA <= columns)
+  if (!pool.length) return null
   const { en, meaning } = pool[(turnOffset + Math.floor(elapsedMs / ROTATE_MS)) % pool.length]
   return { en, meaning }
 }

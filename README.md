@@ -136,7 +136,7 @@ window is narrower than 60 columns.
 
 - 12 zikr, written in English letters, with their meaning
 - The 99 names of Allah, with their meaning
-- 27 hadith from Sahih al-Bukhari, each checked by hand against
+- 26 hadith from Sahih al-Bukhari, each checked by hand against
   [sunnah.com](https://sunnah.com)
 
 Every hadith shows its narrator and its number, so you can read it in full
@@ -167,6 +167,11 @@ shell or network access.
 
 Open an issue with the sunnah.com link of the hadith and what you would like
 changed. Mistakes in religious text are taken seriously and fixed first.
+
+## Like it?
+
+If Tadhkir Loop helps you, please give the repo a star. It helps other
+Muslim developers find it.
 
 ## License
 

@@ -133,7 +133,7 @@ export default {
     {
       "number": 10,
       "en": "Al-Mutakabbir",
-      "meaning": "The Greatest",
+      "meaning": "The Supreme in Greatness",
       "ar": "الْمُتَكَبِّرُ"
     },
     {
@@ -295,7 +295,7 @@ export default {
     {
       "number": 37,
       "en": "Al-Kabir",
-      "meaning": "The Greatest",
+      "meaning": "The Most Great",
       "ar": "الْكَبِيرُ"
     },
     {
@@ -360,7 +360,7 @@ export default {
     },
     {
       "number": 48,
-      "en": "Al-Majid",
+      "en": "Al-Majeed",
       "meaning": "The Most Glorious One",
       "ar": "الْمَجِيدُ"
     },
@@ -462,7 +462,7 @@ export default {
     },
     {
       "number": 65,
-      "en": "Al-Majid",
+      "en": "Al-Maajid",
       "meaning": "The Glorious",
       "ar": "الْمَاجِدُ"
     },
@@ -643,7 +643,7 @@ export default {
     {
       "number": 95,
       "en": "Al-Badi'",
-      "meaning": "The Originator",
+      "meaning": "The Incomparable Originator",
       "ar": "الْبَدِيعُ"
     },
     {
@@ -802,17 +802,6 @@ export default {
       "original": "Narrated Asma:The Prophet (ﷺ) said to me, \"Do not withhold your money, (for if you did so) Allah would withhold His blessings from you.\" Narrated `Abda: The Prophet (ﷺ) said, \"Do not withhold your money by counting it (i.e. hoarding it), (for if you did so), Allah would also withhold His blessings from you",
       "ar": "حَدَّثَنَا صَدَقَةُ بْنُ الْفَضْلِ، أَخْبَرَنَا عَبْدَةُ، عَنْ هِشَامٍ، عَنْ فَاطِمَةَ، عَنْ أَسْمَاءَ ـ رضى الله عنها ـ قَالَتْ قَالَ لِي النَّبِيُّ صلى الله عليه وسلم ‏\"‏ لاَ تُوكِي فَيُوكَى عَلَيْكِ ‏\"‏‏.‏ حَدَّثَنَا عُثْمَانُ بْنُ أَبِي شَيْبَةَ، عَنْ عَبْدَةَ، وَقَالَ، ‏\"‏ لاَ تُحْصِي فَيُحْصِيَ اللَّهُ عَلَيْكِ ‏\"‏",
       "url": "https://sunnah.com/bukhari:1433",
-      "approvedAt": "2026-10-27"
-    },
-    {
-      "id": "bukhari-1445",
-      "collection": "Bukhari",
-      "number": "1445",
-      "narrator": "Abu Burda",
-      "en": "Every Muslim has to give in charity.",
-      "original": "Narrated Abu Burda:from his father from his grandfather that the Prophet (ﷺ) said, \"Every Muslim has to give in charity.\" The people asked, \"O Allah's Prophet! If someone has nothing to give, what will he do?\" He said, \"He should work with his hands and benefit himself and also give in charity (from what he earns).\" The people further asked, \"If he cannot find even that?\" He replied, \"He should help the needy who appeal for help.\" Then the people asked, \"If he cannot do that?\" He replied, \"Then he should perform good deeds and keep away from evil deeds and this will be regarded as charitable deeds",
-      "ar": "حَدَّثَنَا مُسْلِمُ بْنُ إِبْرَاهِيمَ، حَدَّثَنَا شُعْبَةُ، حَدَّثَنَا سَعِيدُ بْنُ أَبِي بُرْدَةَ، عَنْ أَبِيهِ، عَنْ جَدِّهِ، عَنِ النَّبِيِّ صلى الله عليه وسلم قَالَ ‏\"‏ عَلَى كُلِّ مُسْلِمٍ صَدَقَةٌ ‏\"‏‏.‏ فَقَالُوا يَا نَبِيَّ اللَّهِ فَمَنْ لَمْ يَجِدْ قَالَ ‏\"‏ يَعْمَلُ بِيَدِهِ فَيَنْفَعُ نَفْسَهُ وَيَتَصَدَّقُ ‏\"‏‏.‏ قَالُوا فَإِنْ لَمْ يَجِدْ قَالَ ‏\"‏ يُعِينُ ذَا الْحَاجَةِ الْمَلْهُوفَ ‏\"‏‏.‏ قَالُوا فَإِنْ لَمْ يَجِدْ‏.‏ قَالَ ‏\"‏ فَلْيَعْمَلْ بِالْمَعْرُوفِ، وَلْيُمْسِكْ عَنِ الشَّرِّ فَإِنَّهَا لَهُ صَدَقَةٌ ‏\"‏‏.‏",
-      "url": "https://sunnah.com/bukhari:1445",
       "approvedAt": "2026-10-27"
     },
     {

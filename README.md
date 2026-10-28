@@ -57,7 +57,7 @@ This tells Claude Code where to find the plugin (this GitHub repo). Run in
 your terminal:
 
 ```
-claude plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin
+claude plugin marketplace add Ashikur540/tadhkir-loop
 ```
 
 ### Step 3: Install the plugin
@@ -81,7 +81,7 @@ any message and watch the spinner.
 Steps 2 and 3 also work as slash commands inside a running Claude Code:
 
 ```
-/plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin
+/plugin marketplace add Ashikur540/tadhkir-loop
 /plugin install tadhkir-loop@tadhkir-loop
 ```
 

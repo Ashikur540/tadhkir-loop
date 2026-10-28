@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Plugin name `tadhkir-loop`, display name `Tadhkir Loop`, marketplace name `tadhkir-loop`, repo `https://github.com/Ashikur540/tadhkir-loop-claude-plugin`.
+- Plugin name `tadhkir-loop`, display name `Tadhkir Loop`, marketplace name `tadhkir-loop`, repo `https://github.com/Ashikur540/tadhkir-loop`.
 - Source of truth for every mods API name and event shape: `.claude-plugin/types/claude-code/index.d.ts`, which Claude Code writes when you run `claude --plugin-dir .` once. The GitHub copy can be older. Do not commit this folder.
 - Hooks module rules (from `claude plugin validate`): ES modules only; static `import` declarations from relative paths inside the plugin (only bare import allowed: `claude-code`); write every `$` call in full inline (`$.ui.log(...)`), never pass `$` to an imported function or assign it; event names as string literals.
 - No runtime network calls, no reading project files, no telemetry, no third-party runtime dependencies.
@@ -433,7 +433,7 @@ This task has a human step: the owner reviews the content. Nothing ships without
 Run: `claude plugin test`
 Expected: all pass, and the `session start` test now logs a `Hadith of the day` line.
 
-- [ ] **Step 3: Write `README.md`** with: what it does (3 screens from the spec appendix), install commands (`/plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin`, `/plugin install tadhkir-loop@tadhkir-loop`), requires Claude Code 2.1.299+, the two `/config` switches plus the tip that `/config` > Show tips hides Claude's own tip line, the security note (spec 8.1), content sources and credits (spec 8.2: hadith-api, Muhsin Khan, Abdul Hamid Siddiqui, aladhan.com, sunnah.com links), and how to suggest a hadith (open an issue with the sunnah.com link).
+- [ ] **Step 3: Write `README.md`** with: what it does (3 screens from the spec appendix), install commands (`/plugin marketplace add Ashikur540/tadhkir-loop`, `/plugin install tadhkir-loop@tadhkir-loop`), requires Claude Code 2.1.299+, the two `/config` switches plus the tip that `/config` > Show tips hides Claude's own tip line, the security note (spec 8.1), content sources and credits (spec 8.2: hadith-api, Muhsin Khan, Abdul Hamid Siddiqui, aladhan.com, sunnah.com links), and how to suggest a hadith (open an issue with the sunnah.com link).
 
 - [ ] **Step 4: Add `LICENSE`**: MIT for the code (owner's choice), and set `license` in `plugin.json` to `MIT`. The README states that MIT covers the code only, not the bundled translations (spec 8.2).
 

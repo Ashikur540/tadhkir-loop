@@ -68,7 +68,7 @@ Over time the product should do three things (in phases):
 | Picking | Script finds short candidates, owner approves each in a local review page |
 | Content storage | Bundled JSON inside the plugin, no runtime network |
 | Settings | Show hadith, Show meaning. Language switch removed from Phase 1 (only one option), comes back in Phase 2 with Arabic |
-| Distribution | Public repo https://github.com/Ashikur540/tadhkir-loop-claude-plugin. Install: `/plugin marketplace add Ashikur540/tadhkir-loop-claude-plugin`, then `/plugin install tadhkir-loop@tadhkir-loop` |
+| Distribution | Public repo https://github.com/Ashikur540/tadhkir-loop. Install: `/plugin marketplace add Ashikur540/tadhkir-loop`, then `/plugin install tadhkir-loop@tadhkir-loop` |
 
 ## 4. Builder's calls (made by Claude, owner can change)
 
@@ -130,7 +130,7 @@ Over time the product should do three things (in phases):
 ## 6. Architecture
 
 ```
-tadhkir-loop-claude-plugin/      (repo root, public on GitHub)
+tadhkir-loop/                    (repo root, public on GitHub)
 ├── .claude-plugin/
 │   ├── plugin.json              name, version, userConfig (2 switches)
 │   └── marketplace.json         marketplace "tadhkir-loop", one plugin, source "./"

@@ -9,14 +9,14 @@ and a short authentic hadith sits under it.
 When you start Claude Code, a Bismillah line, and the hadith of the day just
 above the prompt until you send your first message:
 
-```
-⏺ tadhkir-loop: Bismillah
-  "A believer to another believer is like a building whose different parts
-  enforce each other."
-    ~ Abu Musa · Bukhari 2446                                          [-]
-╭──────────────────────────────────────────────────────────────────────────╮
-│ >                                                                        │
-```
+<p align="center">
+  <img
+    src="https://media.licdn.com/dms/image/v2/D5622AQH8O632P33qGA/feedshare-shrink_800/B56aGBZEj4GoAc-/0/1793172195943?e=1795046400&v=beta&t=TBDlWw1hXYhW9U7ecID6lq_oCvT-tyGFbeGQ11cUcSU"
+    alt="Tadhkir Loop startup message preview"
+    width="550"
+    style="object-fit: cover;"
+  />
+</p>
 
 While Claude works, the word changes every 8 seconds, with a hadith for that
 turn under it:

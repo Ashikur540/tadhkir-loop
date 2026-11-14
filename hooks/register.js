@@ -59,8 +59,9 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it
-    if (e.surface !== 'terminal' || e.props.message) return next(e)
+    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it.
+    // VS Code shows a fun word ("Pondering"), like the terminal
+    if ((e.surface !== 'terminal' && e.surface !== 'vscode') || e.props.message) return next(e)
     const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset, e.viewport?.columns)
     if (!entry) return next(e)
     const parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)

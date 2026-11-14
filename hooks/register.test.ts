@@ -72,6 +72,13 @@ test('on the desktop the spinner keeps Claude Code\'s step text', async ($, on) 
   expect(seen.at(-1)).toBe('Creating notes.md')
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
+test('in VS Code the spinner fun word becomes a zikr, with the hadith under it', async ($, on) => {
+  const seen: string[] = []; mock.clock(on); stubs(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  const ui = await $.ui.mount({ ...SPINNER, surface: 'vscode', props: { ...SPINNER.props, word: 'Pondering' } })
+  expect(seen.at(-1)).not.toBe('Pondering')
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
+})
 test('session start logs one Bismillah line', async ($, on) => {
   const logs: string[] = []; mock.clock(on)
   on('session.start', () => ({ cwd: '/work' }))

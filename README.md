@@ -1,5 +1,12 @@
 # Tadhkir Loop
 
+<p>
+  <a href="https://github.com/Ashikur540/tadhkir-loop/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Ashikur540/tadhkir-loop?style=flat&logo=github" /></a>
+  <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-D97757" />
+  <img alt="No runtime dependencies" src="https://img.shields.io/badge/runtime%20deps-0-22c55e" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg" />
+</p>
+
 A Claude Code plugin that turns waiting time into remembrance. While Claude
 works, the spinner shows zikr and the 99 names of Allah with their meaning,
 and a short authentic hadith sits under it.
@@ -11,7 +18,7 @@ above the prompt until you send your first message:
 
 <p align="center">
   <img
-    src="https://media.licdn.com/dms/image/v2/D5622AQH8O632P33qGA/feedshare-shrink_800/B56aGBZEj4GoAc-/0/1793172195943?e=1795046400&v=beta&t=TBDlWw1hXYhW9U7ecID6lq_oCvT-tyGFbeGQ11cUcSU"
+    src=".github/assets/startup-preview.jpg"
     alt="Tadhkir Loop startup message preview"
     width="550"
     style="object-fit: cover;"
@@ -154,6 +161,31 @@ trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
 `calls:` line lists only `$.clock` (timing) and `$.ui` (drawing) calls, no file,
 shell or network access.
+
+## How it is built
+
+Small on purpose: about 200 lines of plain JavaScript and one content file.
+
+- **`hooks/register.js`** listens to Claude Code's turn events. When a turn
+  starts it picks a random starting word and a hadith, then a timer swaps the
+  word every 8 seconds. Turns started by sub-agents are ignored, so a helper
+  task finishing early never stops the main spinner.
+- **`hooks/picker.js`** holds the pure logic: which word to show at a given
+  second, the hadith of the day (same for everyone on the same date), and
+  fitting the line to a narrow window. Pure functions, so they are easy to test.
+- **`data/content.js`** ships all zikr, names and hadith inside the plugin.
+  Nothing is fetched while you work.
+- **`tools/`** is the content workshop, run by hand only.
+  `fetch-candidates.js` pulls hadith and the 99 names from public sources,
+  `extract.js` keeps only short, direct sayings of the Prophet (ﷺ), and
+  `review.html` is a small page where a person approves each one. No hadith
+  gets in without a human check.
+
+Tests live next to the code (`*.test.ts`) and run with:
+
+```
+claude plugin test hooks
+```
 
 ## Content sources and credits
 

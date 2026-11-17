@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import raw from '../data/content.js'
 
 const SPINNER = { plugin: 'tadhkir-loop', component: 'Spinner', requestId: 'main', surface: 'terminal',
   viewport: { columns: 100, rows: 30 }, props: { word: 'Baking', message: null, suffix: '…', mode: 'thinking' } } as const
@@ -7,7 +8,7 @@ const stubs = (on: any, seen: string[]) => {
   on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
 }
-const done = (turnId: string) => ({ turnId, answer: '', durationMs: 1000, isAborted: false })
+const done = (turnId: string, durationMs = 1000) => ({ turnId, answer: '', durationMs, isAborted: false, reason: 'answer' as const })
 
 test('spinner shows a zikr word with its meaning and rotates every 8 s', async ($, on) => {
   const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
@@ -72,12 +73,25 @@ test('on the desktop the spinner keeps Claude Code\'s step text', async ($, on) 
   expect(seen.at(-1)).toBe('Creating notes.md')
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
-test('in VS Code the spinner fun word becomes a zikr, with the hadith under it', async ($, on) => {
+test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  const ui = await $.ui.mount({ ...SPINNER, surface: 'vscode', props: { ...SPINNER.props, word: 'Pondering' } })
-  expect(seen.at(-1)).not.toBe('Pondering')
-  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
+  // VS Code reported 49 columns for a wide panel; its status sits on its own line, so no width rule there
+  const ui = await $.ui.mount({ ...SPINNER, surface: 'vscode', viewport: { columns: 49, rows: 38 }, props: { ...SPINNER.props, word: 'Pondering' } })
+  // Our own line, so VS Code puts no plugin name in front of the zikr
+  expect(seen).toEqual([])
+  const words = new Set([...raw.zikr, ...raw.names].map((x) => x.en))
+  const texts: any[] = await ui.findAll({ type: 'Text' })
+  const name = texts.find((t) => t.props?.color === 'success')
+  expect(words.has(name?.children?.[0])).toBe(true)
+  // A text star can't move; an SVG one flips through Claude's own frames inside VS Code,
+  // 12 frames of 120 ms, and stays a still ✻ for reduced motion
+  const star: any = await ui.find({ type: 'Svg' })
+  expect(star?.props?.isInteractive).toBe(true)
+  for (const glyph of ['·', '✢', '*', '✶', '✻', '✽']) expect(star?.props?.source).toContain('>' + glyph + '<')
+  expect(star?.props?.source).toContain('1.44s')
+  expect(star?.props?.source).toMatch(/prefers-reduced-motion[\s\S]*class="still"[^>]*>✻</)
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
 test('session start logs one Bismillah line', async ($, on) => {
   const logs: string[] = []; mock.clock(on)
@@ -92,6 +106,41 @@ test('a -p or SDK run logs no Bismillah', async ($, on) => {
   on('ui.log', ($: any, e: any) => { logs.push(e.text); return { value: undefined } })
   await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
   expect(logs).toEqual([])
+})
+// VS Code runs Claude like an SDK host (not interactive), then attaches its panel
+const vscode = async ($: any, on: any, logs: string[]) => {
+  mock.clock(on)
+  on('session.start', () => ({ cwd: '/work' }))
+  on('session.attach', ($: any, e: any) => ({ clientId: e.clientId }))
+  on('ui.log', ($: any, e: any) => { logs.push(e.text); return { value: undefined } })
+  on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
+  await $.session.attach({ surface: 'vscode', clientId: 'vscode-1' })
+}
+test('in VS Code, Bismillah once when the panel attaches, even if it attaches again', async ($, on) => {
+  const logs: string[] = []; await vscode($, on, logs)
+  await $.session.attach({ surface: 'vscode', clientId: 'vscode-1' })
+  expect(logs).toEqual(['Bismillah'])
+})
+test('in VS Code, Alhamdulillah with the time after each main answer, not after a subagent', async ($, on) => {
+  const logs: string[] = []; await vscode($, on, logs)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.turn.start({ text: 'sub', turnId: 's1', agentId: 'a1' })
+  await $.turn.complete({ ...done('s1', 5000), agentId: 'a1' })
+  await $.turn.complete(done('t1', 41000))
+  expect(logs).toEqual(['Bismillah', 'Alhamdulillah · 41s'])
+})
+test('the terminal gets no Alhamdulillah row, its own done line already says it', async ($, on) => {
+  const logs: string[] = []; mock.clock(on)
+  on('session.start', () => ({ cwd: '/work' }))
+  on('ui.log', ($: any, e: any) => { logs.push(e.text); return { value: undefined } })
+  on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.turn.complete(done('t1', 41000))
+  expect(logs).toEqual(['Bismillah'])
 })
 const BAND = { plugin: 'tadhkir-loop', component: 'AbovePrompt', requestId: 'band', surface: 'terminal',
   viewport: { columns: 100, rows: 30 }, props: { hasSurvey: false, isWorking: false, maxRows: 15, bodyColumns: 95,

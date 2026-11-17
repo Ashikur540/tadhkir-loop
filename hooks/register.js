@@ -41,10 +41,7 @@ export function register(on, options) {
   const poolLength = CONTENT.zikr.length + CONTENT.names.length
   // Hadith of the day above the prompt, hidden once the first message goes
   let showCard = opts.showHadith
-  // VS Code runs Claude like an SDK host (not interactive) and keeps its own done line,
-  // so there Bismillah waits for its panel and Alhamdulillah gets a row of its own
-  let isTerminal = false
-  let inVscode = false
+  // VS Code runs Claude like an SDK host (not interactive), so its Bismillah waits for its panel
   let saidBismillah = false
 
   on('turn.start', async ($, e, next) => {
@@ -67,7 +64,14 @@ export function register(on, options) {
   on('turn.complete', async ($, e, next) => {
     if (e.turnId === mainTurnId) {
       stopTimer()
-      if (inVscode && !isTerminal) $.ui.log('Alhamdulillah · ' + formatDuration(e.durationMs))
+      // VS Code keeps its own done line, so it gets a row of its own, for a finished answer
+      // only (not Stop or an error). Asked live: a reload forgets the panel's attach
+      if (e.reason === 'answer') {
+        const surfaces = await $.session.surfaces()
+        if (surfaces.includes('vscode') && !surfaces.includes('terminal')) {
+          $.ui.log('Alhamdulillah · ' + formatDuration(e.durationMs))
+        }
+      }
     }
     return next(e)
   }).catch(() => undefined)
@@ -86,6 +90,7 @@ export function register(on, options) {
     const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
     const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset, columns)
     if (!entry) return next(e)
+    const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
     if (e.surface === 'vscode') {
       // VS Code puts a plugin's name before a rewritten word. Our own line keeps the name off
       // the zikr (VS Code shows it as a header instead) and lets it take color; no hadith there
@@ -94,11 +99,10 @@ export function register(on, options) {
         Svg({ source: STAR, alt: 'Working', width: 16, height: 16, isInteractive: true }),
         Text({ children: [
           Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-          Text({ dimColor: true, children: [opts.showMeaning ? ' · ' + entry.meaning + '…' : '…'] }),
+          Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
         ] }),
       ] })
     }
-    const parts = spinnerParts(entry, turnHadith, opts, columns)
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
     if (!parts.quote) return theirs
     const { Box, Text } = $.ui.resolve(e)
@@ -119,8 +123,7 @@ export function register(on, options) {
 
   on('session.start', async ($, e, next) => {
     // Only where a person reads it: a -p or SDK host would get it as a message
-    isTerminal = !!e.isInteractive
-    if (isTerminal) {
+    if (e.isInteractive) {
       $.ui.log('Bismillah')
       saidBismillah = true
     }
@@ -128,10 +131,9 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
-    if (e.surface === 'vscode') {
-      inVscode = true
-      // Once per session, though the panel attaches again when it is reopened
-      if (!saidBismillah) $.ui.log('Bismillah')
+    // Once per session, though the panel attaches again when it is reopened
+    if (e.surface === 'vscode' && !saidBismillah) {
+      $.ui.log('Bismillah')
       saidBismillah = true
     }
     return next(e)

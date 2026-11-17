@@ -136,7 +136,7 @@ claude plugin marketplace remove tadhkir-loop
 - **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.
   Start a new Claude session after installing; an open one keeps running
   without the plugin.
-- **You use the Desktop app:** the plugin leaves it alone for now. Its
+- **You use the Desktop app:** the zikr does not show there for now. Its
   spinner shows what Claude is really doing ("Creating notes.md"), and the
   zikr would hide that. Plugins do not load in WSL sessions of the Desktop
   app; Claude Code run in a WSL terminal works as normal.
@@ -178,8 +178,9 @@ on sunnah.com, for example `https://sunnah.com/bukhari:2446`.
 Claude Code plugins can run code on your machine, so only install ones you
 trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
-`calls:` line lists only `$.clock` (timing) and `$.ui` (drawing) calls, no file,
-shell or network access.
+`calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
+`$.session.surfaces` (whether you are in the terminal or VS Code), with no
+file, shell or network access.
 
 ## How it is built
 

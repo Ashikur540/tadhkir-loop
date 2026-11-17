@@ -1,2 +1,4 @@
 .claude-plugin/types/
+# Editor-only: extends the types folder above, which only exists on a machine that loaded the plugin
+tsconfig.json
 tools/candidates.json

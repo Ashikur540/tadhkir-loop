@@ -85,16 +85,27 @@ test('in VS Code the spinner becomes our own colored zikr line, with no hadith',
   const name = texts.find((t) => t.props?.color === 'success')
   expect(words.has(name?.children?.[0])).toBe(true)
   expect(await ui.find({ type: 'Text', text: /^ · .+…$/ })).toBeDefined()
-  // A text star can't move; an SVG one flips through Claude's own frames inside VS Code,
-  // 12 frames of 120 ms, and stays a still ✻ for reduced motion
-  const star: any = await ui.find({ type: 'Svg' })
-  expect(star?.props?.isInteractive).toBe(true)
-  // VS Code shows the alt text when it holds a busy picture back; a still star, not a word
-  expect(star?.props?.alt).toBe('✻')
-  for (const glyph of ['·', '✢', '*', '✶', '✻', '✽']) expect(star?.props?.source).toContain('>' + glyph + '<')
-  expect(star?.props?.source).toContain('1.44s')
-  expect(star?.props?.source).toMatch(/prefers-reduced-motion[\s\S]*class="still"[^>]*>✻</)
+  // A text star in Claude's color: VS Code holds back a picture that animates for long
+  const star = texts.find((t) => t.props?.color === 'claude')
+  expect(['·', '✢', '*', '✶', '✻', '✽']).toContain(star?.children?.[0])
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+})
+test('in VS Code the text star flips to Claude\'s next frame every 120 ms', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
+  on('session.surfaces', () => ({ value: ['vscode'] }))
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  const ui = await $.ui.mount({ ...SPINNER, surface: 'vscode', viewport: { columns: 49, rows: 38 }, props: { ...SPINNER.props, word: 'Pondering' } })
+  const cycle = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
+  const glyphs: any[] = []
+  for (let i = 0; i < 12; i++) {
+    const texts: any[] = await ui.findAll({ type: 'Text' })
+    glyphs.push(texts.find((t) => t.props?.color === 'claude')?.children?.[0])
+    await clock.advance(120)
+  }
+  // The same 12 frames as Claude's own star, in order, from wherever the cycle stood
+  const start = cycle.indexOf(glyphs[0])
+  expect(glyphs).toEqual([...cycle, ...cycle].slice(start, start + 12))
 })
 test('session start logs one Bismillah line', async ($, on) => {
   const logs: string[] = []; mock.clock(on)

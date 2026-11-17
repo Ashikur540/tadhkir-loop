@@ -6,17 +6,11 @@ import { loadContent, wordAt, hadithOfDay, randomHadith, hadithParts,
 
 const ROTATE_MS = 8000
 const CONTENT = loadContent(raw)
-// VS Code's spinner star: our line replaces Claude's animated one, and text can't move, so an SVG
-// flips through Claude's own frames (12 of 120 ms) and stays a still ✻ under reduced motion
-const FRAMES = ['·', '✢', '*', '✶', '✻', '✽']
-const STAR = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">' +
-  '<style>text{font:16px monospace;fill:#d97757;opacity:0;animation:f 1.44s step-end infinite}' +
-  '@keyframes f{0%{opacity:1}8.3333%{opacity:0}}' +
-  '@media (prefers-reduced-motion:reduce){text{animation:none}.still{opacity:1}}</style>' +
-  [...FRAMES, ...[...FRAMES].reverse()].map((glyph, i) =>
-    `<text x="8" y="8" text-anchor="middle" dominant-baseline="central"${i === 4 ? ' class="still"' : ''} ` +
-    `style="animation-delay:${((i - 12) * 0.12).toFixed(2)}s">${glyph}</text>`).join('') +
-  '</svg>'
+// VS Code's spinner star: our line replaces Claude's animated one, so we flip through Claude's own
+// frames as text, redrawing every 120 ms. An animated picture moves on its own, but VS Code
+// holds back a picture that keeps animating through a long turn
+const STAR_FRAMES = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
+const STAR_MS = 120
 
 // The main loop's current turn. Subagent turns are ignored, so one
 // finishing early can't stop the main spinner's rotation.
@@ -51,7 +45,9 @@ export function register(on, options) {
     turnStart = await $.clock.now()
     turnOffset = Math.floor(Math.random() * poolLength)
     turnHadith = randomHadith(CONTENT, Math.random)
-    timer = $.clock.every(ROTATE_MS, () => {
+    // VS Code needs a redraw for every star frame; elsewhere only for the next word
+    const surfaces = await $.session.surfaces().catch(() => [])
+    timer = $.clock.every(surfaces?.includes('vscode') ? STAR_MS : ROTATE_MS, () => {
       if (mainTurnId) $.ui.invalidate('ui.render')
     })
     if (showCard) {
@@ -88,17 +84,18 @@ export function register(on, options) {
     // The width rule is for the terminal, where Claude's status shares the spinner line.
     // VS Code puts its status on its own line, wraps text, and reports far fewer columns than it shows
     const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
-    const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset, columns)
+    const elapsed = (await $.clock.now()) - turnStart
+    const entry = wordAt(CONTENT, elapsed, turnOffset, columns)
     if (!entry) return next(e)
     const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
     if (e.surface === 'vscode') {
       // VS Code puts a plugin's name before a rewritten word. Our own line keeps the name off
       // the zikr (VS Code shows it as a header instead) and lets it take color; no hadith there
-      const { Box, Text, Svg } = $.ui.resolve(e)
-      return Box({ flexDirection: 'row', alignItems: 'center', gap: 1, children: [
-        // VS Code draws the alt text when it holds back a picture that costs too much (a long
-        // turn of nonstop animation can), so the fallback is a still star rather than a word
-        Svg({ source: STAR, alt: '✻', width: 16, height: 16, isInteractive: true }),
+      const { Box, Text } = $.ui.resolve(e)
+      const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
+      return Box({ flexDirection: 'row', children: [
+        // A fixed slot, as Claude's own star has, so the narrow frames don't shift the words
+        Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
         Text({ children: [
           Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
           Text({ dimColor: true, children: [parts.suffix ?? '…'] }),

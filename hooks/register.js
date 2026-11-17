@@ -6,6 +6,11 @@ import { loadContent, wordAt, hadithOfDay, randomHadith, hadithParts,
 
 const ROTATE_MS = 8000
 const CONTENT = loadContent(raw)
+// VS Code's spinner star: our line replaces Claude's animated one, so we flip through Claude's own
+// frames as text, redrawing every 120 ms. An animated picture moves on its own, but VS Code
+// holds back a picture that keeps animating through a long turn
+const STAR_FRAMES = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
+const STAR_MS = 120
 
 // The main loop's current turn. Subagent turns are ignored, so one
 // finishing early can't stop the main spinner's rotation.
@@ -30,6 +35,8 @@ export function register(on, options) {
   const poolLength = CONTENT.zikr.length + CONTENT.names.length
   // Hadith of the day above the prompt, hidden once the first message goes
   let showCard = opts.showHadith
+  // VS Code runs Claude like an SDK host (not interactive), so its Bismillah waits for its panel
+  let saidBismillah = false
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
@@ -38,7 +45,9 @@ export function register(on, options) {
     turnStart = await $.clock.now()
     turnOffset = Math.floor(Math.random() * poolLength)
     turnHadith = randomHadith(CONTENT, Math.random)
-    timer = $.clock.every(ROTATE_MS, () => {
+    // VS Code needs a redraw for every star frame; elsewhere only for the next word
+    const surfaces = await $.session.surfaces().catch(() => [])
+    timer = $.clock.every(surfaces?.includes('vscode') ? STAR_MS : ROTATE_MS, () => {
       if (mainTurnId) $.ui.invalidate('ui.render')
     })
     if (showCard) {
@@ -49,7 +58,17 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('turn.complete', async ($, e, next) => {
-    if (e.turnId === mainTurnId) stopTimer()
+    if (e.turnId === mainTurnId) {
+      stopTimer()
+      // VS Code keeps its own done line, so it gets a row of its own, for a finished answer
+      // only (not Stop or an error). Asked live: a reload forgets the panel's attach
+      if (e.reason === 'answer') {
+        const surfaces = await $.session.surfaces()
+        if (surfaces.includes('vscode') && !surfaces.includes('terminal')) {
+          $.ui.log('Alhamdulillah · ' + formatDuration(e.durationMs))
+        }
+      }
+    }
     return next(e)
   }).catch(() => undefined)
 
@@ -59,11 +78,30 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it
-    if (e.surface !== 'terminal' || e.props.message) return next(e)
-    const entry = wordAt(CONTENT, (await $.clock.now()) - turnStart, turnOffset, e.viewport?.columns)
+    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it.
+    // VS Code shows a fun word ("Pondering"), like the terminal
+    if ((e.surface !== 'terminal' && e.surface !== 'vscode') || e.props.message) return next(e)
+    // The width rule is for the terminal, where Claude's status shares the spinner line.
+    // VS Code puts its status on its own line, wraps text, and reports far fewer columns than it shows
+    const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
+    const elapsed = (await $.clock.now()) - turnStart
+    const entry = wordAt(CONTENT, elapsed, turnOffset, columns)
     if (!entry) return next(e)
-    const parts = spinnerParts(entry, turnHadith, opts, e.viewport?.columns)
+    const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
+    if (e.surface === 'vscode') {
+      // VS Code puts a plugin's name before a rewritten word. Our own line keeps the name off
+      // the zikr (VS Code shows it as a header instead) and lets it take color; no hadith there
+      const { Box, Text } = $.ui.resolve(e)
+      const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
+      return Box({ flexDirection: 'row', children: [
+        // A fixed slot, as Claude's own star has, so the narrow frames don't shift the words
+        Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
+        Text({ children: [
+          Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
+          Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
+        ] }),
+      ] })
+    }
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
     if (!parts.quote) return theirs
     const { Box, Text } = $.ui.resolve(e)
@@ -84,7 +122,19 @@ export function register(on, options) {
 
   on('session.start', async ($, e, next) => {
     // Only where a person reads it: a -p or SDK host would get it as a message
-    if (e.isInteractive) $.ui.log('Bismillah')
+    if (e.isInteractive) {
+      $.ui.log('Bismillah')
+      saidBismillah = true
+    }
+    return next(e)
+  }).catch(() => undefined)
+
+  on('session.attach', async ($, e, next) => {
+    // Once per session, though the panel attaches again when it is reopened
+    if (e.surface === 'vscode' && !saidBismillah) {
+      $.ui.log('Bismillah')
+      saidBismillah = true
+    }
     return next(e)
   }).catch(() => undefined)
 

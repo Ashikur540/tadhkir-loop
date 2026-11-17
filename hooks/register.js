@@ -96,7 +96,9 @@ export function register(on, options) {
       // the zikr (VS Code shows it as a header instead) and lets it take color; no hadith there
       const { Box, Text, Svg } = $.ui.resolve(e)
       return Box({ flexDirection: 'row', alignItems: 'center', gap: 1, children: [
-        Svg({ source: STAR, alt: 'Working', width: 16, height: 16, isInteractive: true }),
+        // VS Code draws the alt text when it holds back a picture that costs too much (a long
+        // turn of nonstop animation can), so the fallback is a still star rather than a word
+        Svg({ source: STAR, alt: '✻', width: 16, height: 16, isInteractive: true }),
         Text({ children: [
           Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
           Text({ dimColor: true, children: [parts.suffix ?? '…'] }),

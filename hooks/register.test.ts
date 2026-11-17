@@ -89,6 +89,8 @@ test('in VS Code the spinner becomes our own colored zikr line, with no hadith',
   // 12 frames of 120 ms, and stays a still ✻ for reduced motion
   const star: any = await ui.find({ type: 'Svg' })
   expect(star?.props?.isInteractive).toBe(true)
+  // VS Code shows the alt text when it holds a busy picture back; a still star, not a word
+  expect(star?.props?.alt).toBe('✻')
   for (const glyph of ['·', '✢', '*', '✶', '✻', '✽']) expect(star?.props?.source).toContain('>' + glyph + '<')
   expect(star?.props?.source).toContain('1.44s')
   expect(star?.props?.source).toMatch(/prefers-reduced-motion[\s\S]*class="still"[^>]*>✻</)

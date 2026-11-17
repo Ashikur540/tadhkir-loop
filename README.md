@@ -201,10 +201,10 @@ Small on purpose: about 200 lines of plain JavaScript and one content file.
   `review.html` is a small page where a person approves each one. No hadith
   gets in without a human check.
 
-Tests live next to the code (`*.test.ts`) and run with:
+Tests live next to the code (`*.test.ts`) and run from the repo folder with:
 
 ```
-claude plugin test hooks
+claude plugin test .
 ```
 
 ## Content sources and credits

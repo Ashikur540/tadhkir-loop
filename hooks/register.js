@@ -93,14 +93,19 @@ export function register(on, options) {
       // The apps put a plugin's name before a rewritten word, so the zikr gets a line of our
       // own (the app shows the name as a header instead) and can take color; no hadith there
       const { Box, Text } = $.ui.resolve(e)
+      const desktop = e.surface === 'desktop'
       const zikr = Text({ children: [
         Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-        Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
+        // On the desktop the gray step sits beside it, so the meaning stays bright to be read
+        Text({ dimColor: !desktop, children: [parts.suffix ?? '…'] }),
       ] })
-      // On the desktop the word is Claude's real step ("Creating notes.md"): keep it whole and put
-      // the zikr after it. The desktop draws this in a one-line slot, so no second row
-      if (e.surface === 'desktop') {
-        return Box({ flexDirection: 'row', children: [await next(e), Text({ children: ['   '] }), zikr] })
+      // On the desktop the word is Claude's real step ("Creating notes.md"): keep it whole, after
+      // the zikr, which leads so it is read first. The desktop draws this in a one-line slot (no
+      // second row) and drops plain spaces at a text's edge, so the gap is non-breaking
+      if (desktop) {
+        return Box({ flexDirection: 'row', children: [
+          zikr, Text({ dimColor: true, children: ['  —  '] }), await next(e),
+        ] })
       }
       // VS Code shows a fun word ("Pondering"), so our line takes its place, star and all
       const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]

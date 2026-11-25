@@ -66,7 +66,7 @@ test('done line leaves the waiting-for-agents text and the ctrl+o view to Claude
   const expanded = await $.ui.mount({ ...DONE, requestId: 'm3', props: { ...DONE.props, isExpanded: true } })
   expect(await expanded.find({ type: 'Text', text: 'engine line' })).toBeDefined()
 })
-test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr after it on the same line', async ($, on) => {
+test('on the desktop the zikr leads the line, bright, with Claude Code\'s step kept after it', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
   const ui = await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Creating notes.md' } })
@@ -81,6 +81,14 @@ test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr a
   // The desktop draws a plugin's spinner in a one-line slot (nowrap, 1lh tall): no stacked rows
   const boxes: any[] = await ui.findAll({ type: 'Box' })
   expect(boxes.some((b) => b.props?.flexDirection === 'column')).toBe(false)
+  // Read first: the zikr comes before the step, and the meaning is not dimmed into the gray step
+  const nameAt = texts.findIndex((t) => t.props?.color === 'success')
+  const stepAt = texts.findIndex((t) => t.children?.[0] === 'Creating notes.md|…')
+  expect(nameAt).toBeGreaterThanOrEqual(0)
+  expect(nameAt).toBeLessThan(stepAt)
+  expect(texts.find((t) => /^ · .+…$/.test(t.children?.[0]))?.props?.dimColor).toBeFalsy()
+  // The desktop drops plain spaces at the edge of a text, so the gap is non-breaking
+  expect(texts.some((t) => / /.test(t.children?.[0] ?? ''))).toBe(true)
 })
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)

@@ -66,7 +66,7 @@ test('done line leaves the waiting-for-agents text and the ctrl+o view to Claude
   const expanded = await $.ui.mount({ ...DONE, requestId: 'm3', props: { ...DONE.props, isExpanded: true } })
   expect(await expanded.find({ type: 'Text', text: 'engine line' })).toBeDefined()
 })
-test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr on a line under it', async ($, on) => {
+test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr after it on the same line', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
   const ui = await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Creating notes.md' } })
@@ -78,6 +78,9 @@ test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr o
   expect(words.has(texts.find((t) => t.props?.color === 'success')?.children?.[0])).toBe(true)
   expect(await ui.find({ type: 'Text', text: /^ · .+…$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+  // The desktop draws a plugin's spinner in a one-line slot (nowrap, 1lh tall): no stacked rows
+  const boxes: any[] = await ui.findAll({ type: 'Box' })
+  expect(boxes.some((b) => b.props?.flexDirection === 'column')).toBe(false)
 })
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)

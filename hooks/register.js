@@ -97,8 +97,11 @@ export function register(on, options) {
         Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
         Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
       ] })
-      // On the desktop the word is Claude's real step ("Creating notes.md"): keep that row whole
-      if (e.surface === 'desktop') return Box({ flexDirection: 'column', children: [await next(e), zikr] })
+      // On the desktop the word is Claude's real step ("Creating notes.md"): keep it whole and put
+      // the zikr after it. The desktop draws this in a one-line slot, so no second row
+      if (e.surface === 'desktop') {
+        return Box({ flexDirection: 'row', children: [await next(e), Text({ children: ['   '] }), zikr] })
+      }
       // VS Code shows a fun word ("Pondering"), so our line takes its place, star and all
       const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
       return Box({ flexDirection: 'row', children: [

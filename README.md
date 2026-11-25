@@ -43,6 +43,22 @@ When Claude is done:
 ✻ Alhamdulillah · 41s
 ```
 
+### In VS Code
+
+The Claude Code panel in VS Code shows the zikr too, with the name of Allah in
+color and Claude's sparkling star:
+
+```
+From the tadhkir-loop plugin
+✻ Al-Muqaddim · The Expediter…
+```
+
+VS Code adds the small "From the tadhkir-loop plugin" label itself, so you
+always know what changed the screen. You also get a Bismillah line when the
+panel opens, and an "Alhamdulillah · 41s" line after each answer. The hadith
+under the spinner and the hadith of the day stay in the terminal, because VS
+Code puts a frame around anything extra a plugin draws.
+
 ## Install
 
 It takes about a minute. You only need Claude Code. You do not need to
@@ -117,16 +133,21 @@ claude plugin marketplace remove tadhkir-loop
 - **Still nothing:** run `claude --version` and make sure it is 2.1.310 or
   newer, then run `claude plugin list` and check that `tadhkir-loop` is there
   and enabled.
-- **You use the Desktop app or VS Code:** zikr, the hadith and the
-  Alhamdulillah line show only in the terminal for now. In the Desktop app
-  you will see just the Bismillah line. Plugins do not load in WSL sessions
-  of the Desktop app; Claude Code run in a WSL terminal works as normal.
+- **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.
+  Start a new Claude session after installing; an open one keeps running
+  without the plugin.
+- **You use the Desktop app:** the zikr does not show there for now. Its
+  spinner shows what Claude is really doing ("Creating notes.md"), and the
+  zikr would hide that. Plugins do not load in WSL sessions of the Desktop
+  app; Claude Code run in a WSL terminal works as normal.
 - Still stuck? Open an issue on this repo with your `claude --version` and
   your operating system.
 
 ## Settings
 
-Open `/config` and look for Tadhkir Loop:
+In the terminal, open `/config` and look for Tadhkir Loop. In VS Code,
+`/config` opens VS Code's own settings instead: type `/plugins` and click the
+gear icon on the Tadhkir Loop row. Both places change the same switches:
 
 - **Show hadith**: the hadith under the spinner and the hadith of the day
   card. On by default.
@@ -159,8 +180,9 @@ on sunnah.com, for example `https://sunnah.com/bukhari:2446`.
 Claude Code plugins can run code on your machine, so only install ones you
 trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
-`calls:` line lists only `$.clock` (timing) and `$.ui` (drawing) calls, no file,
-shell or network access.
+`calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
+`$.session.surfaces` (whether you are in the terminal or VS Code), with no
+file, shell or network access.
 
 ## How it is built
 
@@ -181,10 +203,10 @@ Small on purpose: about 200 lines of plain JavaScript and one content file.
   `review.html` is a small page where a person approves each one. No hadith
   gets in without a human check.
 
-Tests live next to the code (`*.test.ts`) and run with:
+Tests live next to the code (`*.test.ts`) and run from the repo folder with:
 
 ```
-claude plugin test hooks
+claude plugin test .
 ```
 
 ## Content sources and credits

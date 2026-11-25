@@ -96,8 +96,9 @@ export function register(on, options) {
       const desktop = e.surface === 'desktop'
       const zikr = Text({ children: [
         Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-        // On the desktop the gray step sits beside it, so the meaning stays bright to be read
-        Text({ dimColor: !desktop, children: [parts.suffix ?? '…'] }),
+        // On the desktop the gray step sits beside it, so the meaning stays bright to be read.
+        // No trailing "…" here: our line is not Claude's word, and after a meaning it reads as cut off
+        Text({ dimColor: !desktop, children: [(parts.suffix ?? '').replace(/…$/, '')] }),
       ] })
       // On the desktop the word is Claude's real step ("Creating notes.md"): keep it whole, after
       // the zikr, which leads so it is read first. The desktop draws this in a one-line slot (no

@@ -76,7 +76,8 @@ test('on the desktop the zikr leads the line, bright, with Claude Code\'s step k
   const words = new Set([...raw.zikr, ...raw.names].map((x) => x.en))
   const texts: any[] = await ui.findAll({ type: 'Text' })
   expect(words.has(texts.find((t) => t.props?.color === 'success')?.children?.[0])).toBe(true)
-  expect(await ui.find({ type: 'Text', text: /^ · .+…$/ })).toBeDefined()
+  // No trailing "…" on our own line: after a meaning it reads as cut-off text
+  expect(await ui.find({ type: 'Text', text: /^ · [^…]+$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
   // The desktop draws a plugin's spinner in a one-line slot (nowrap, 1lh tall): no stacked rows
   const boxes: any[] = await ui.findAll({ type: 'Box' })
@@ -86,7 +87,7 @@ test('on the desktop the zikr leads the line, bright, with Claude Code\'s step k
   const stepAt = texts.findIndex((t) => t.children?.[0] === 'Creating notes.md|…')
   expect(nameAt).toBeGreaterThanOrEqual(0)
   expect(nameAt).toBeLessThan(stepAt)
-  expect(texts.find((t) => /^ · .+…$/.test(t.children?.[0]))?.props?.dimColor).toBeFalsy()
+  expect(texts.find((t) => /^ · [^…]+$/.test(t.children?.[0]))?.props?.dimColor).toBeFalsy()
   // The desktop drops plain spaces at the edge of a text, so the gap is non-breaking
   expect(texts.some((t) => / /.test(t.children?.[0] ?? ''))).toBe(true)
 })
@@ -101,7 +102,8 @@ test('in VS Code the spinner becomes our own colored zikr line, with no hadith',
   const texts: any[] = await ui.findAll({ type: 'Text' })
   const name = texts.find((t) => t.props?.color === 'success')
   expect(words.has(name?.children?.[0])).toBe(true)
-  expect(await ui.find({ type: 'Text', text: /^ · .+…$/ })).toBeDefined()
+  // No trailing "…" on our own line: after a meaning it reads as cut-off text
+  expect(await ui.find({ type: 'Text', text: /^ · [^…]+$/ })).toBeDefined()
   // A text star in Claude's color: VS Code holds back a picture that animates for long
   const star = texts.find((t) => t.props?.color === 'claude')
   expect(['·', '✢', '*', '✶', '✻', '✽']).toContain(star?.children?.[0])

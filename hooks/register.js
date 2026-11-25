@@ -89,25 +89,21 @@ export function register(on, options) {
     const entry = wordAt(CONTENT, elapsed, turnOffset, columns)
     if (!entry) return next(e)
     const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
-    if (e.surface !== 'terminal') {
-      // The apps put a plugin's name before a rewritten word, so the zikr gets a line of our
-      // own (the app shows the name as a header instead) and can take color; no hadith there
+    // The apps' line: no trailing "…", which after a meaning reads as cut-off text
+    const meaning = (parts.suffix ?? '').replace(/…$/, '')
+    if (e.surface === 'desktop') {
+      // A plugin's own tree there drops the app's animated icon and elapsed time, so only the
+      // words change: the zikr leads, and Claude's real step ("Creating notes.md") follows
+      return next({ ...e, props: { ...e.props, word: `${entry.en}${meaning} — ${e.props.word}` } })
+    }
+    if (e.surface === 'vscode') {
+      // VS Code puts a plugin's name before a rewritten word, so the zikr gets a line of our
+      // own (VS Code shows the name as a header instead) and can take color; no hadith there
       const { Box, Text } = $.ui.resolve(e)
-      const desktop = e.surface === 'desktop'
       const zikr = Text({ children: [
         Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-        // On the desktop the gray step sits beside it, so the meaning stays bright to be read.
-        // No trailing "…" here: our line is not Claude's word, and after a meaning it reads as cut off
-        Text({ dimColor: !desktop, children: [(parts.suffix ?? '').replace(/…$/, '')] }),
+        Text({ dimColor: true, children: [meaning] }),
       ] })
-      // On the desktop the word is Claude's real step ("Creating notes.md"): keep it whole, after
-      // the zikr, which leads so it is read first. The desktop draws this in a one-line slot (no
-      // second row) and drops plain spaces at a text's edge, so the gap is non-breaking
-      if (desktop) {
-        return Box({ flexDirection: 'row', children: [
-          zikr, Text({ dimColor: true, children: ['  —  '] }), await next(e),
-        ] })
-      }
       // VS Code shows a fun word ("Pondering"), so our line takes its place, star and all
       const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
       return Box({ flexDirection: 'row', children: [

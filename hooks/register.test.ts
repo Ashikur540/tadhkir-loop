@@ -182,6 +182,19 @@ test('with the terminal and VS Code both showing, the terminal\'s done line is e
   expect(logs).toEqual(['Bismillah'])
 })
 
+test('a reopened conversation gets no second Bismillah: it is already in the history', async ($, on) => {
+  const logs: string[] = []; mock.clock(on); logger(on, logs)
+  on('session.turns', () => ({ value: 3 }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(logs).toEqual([])
+})
+test('reopening a Desktop or VS Code conversation adds no second Bismillah', async ($, on) => {
+  const logs: string[] = []
+  on('session.turns', () => ({ value: 2 }))
+  await desktop($, on, logs)
+  expect(logs).toEqual([])
+})
+
 // ---- VS Code ----
 
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
@@ -352,4 +365,12 @@ test('the start card stays out of a survey, a subagent\'s view, and VS Code', as
   // VS Code does not show this band
   const vscodeBand = await $.ui.mount({ ...BAND, requestId: 'band-vscode', surface: 'vscode' })
   expect(await vscodeBand.find({ type: 'Text', text: QUOTE })).toBeUndefined()
+})
+test('the start card stays hidden in a conversation that already has messages, as after reopening or a reload', async ($, on) => {
+  mock.clock(on); emptyBand(on)
+  on('session.turns', () => ({ value: 1 }))
+  const terminal = await $.ui.mount(BAND)
+  expect(await terminal.find({ type: 'Text', text: QUOTE })).toBeUndefined()
+  const desktopBand = await $.ui.mount({ ...BAND, requestId: 'band-desktop', surface: 'desktop' })
+  expect(await desktopBand.find({ type: 'Text', text: 'Bismillah' })).toBeUndefined()
 })

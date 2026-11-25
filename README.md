@@ -198,7 +198,9 @@ trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
 `calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
 `$.session.surfaces` (whether you are in the terminal, VS Code or the Desktop
-app), with no file, shell or network access. Run it again after each update.
+app) and `$.session.turns` (how many messages you have sent, a number only, so
+a reopened conversation does not get a second Bismillah), with no file, shell
+or network access. Run it again after each update.
 
 The scripts in `tools/` are only for preparing new content. The maintainer
 runs them by hand, they do fetch from the internet, and the plugin never

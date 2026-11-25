@@ -93,6 +93,16 @@ async function readSurfaces($) {
   return (await $.session.surfaces().catch(() => null)) ?? []
 }
 
+/**
+ * Whether the conversation already has messages: it was reopened, or the plugin
+ * reloaded mid-conversation (which raises session.start again with fresh state).
+ * Its Bismillah is already in the saved history, so we don't add another.
+ * Reads only the count of prompts sent, never their text.
+ */
+async function isUnderway($) {
+  return ((await $.session.turns().catch(() => 0)) ?? 0) > 0
+}
+
 export function register(on, options) {
   if (!CONTENT) return
   const opts = {
@@ -163,13 +173,13 @@ export function register(on, options) {
 
   on('session.start', async ($, e, next) => {
     // Only where a person reads it: a -p or SDK host would get it as a message.
-    if (e.isInteractive && firstGreeting()) $.ui.log(BISMILLAH)
+    if (e.isInteractive && firstGreeting() && !(await isUnderway($))) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
     // The apps start non-interactive and greet when their window attaches.
-    if (APP_SURFACES.includes(e.surface) && firstGreeting()) $.ui.log(BISMILLAH)
+    if (APP_SURFACES.includes(e.surface) && firstGreeting() && !(await isUnderway($))) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 
@@ -198,9 +208,10 @@ export function register(on, options) {
   // start page shows no log lines, so there the card carries Bismillah too.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const { isWorking, hasSurvey, view } = e.props
-    if (!startCard || isWorking || hasSurvey || view?.agentId || !CARD_SURFACES.includes(e.surface)) {
-      return next(e)
-    }
+    if (isWorking || hasSurvey || view?.agentId || !CARD_SURFACES.includes(e.surface)) return next(e)
+    // The card is for a new conversation only.
+    if (startCard && (await isUnderway($))) startCard = false
+    if (!startCard) return next(e)
     const hadith = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
     const withBismillah = e.surface === 'desktop'
     if (!hadith && !withBismillah) return next(e)

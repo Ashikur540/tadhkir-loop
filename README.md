@@ -56,8 +56,8 @@ From the tadhkir-loop plugin
 VS Code adds the small "From the tadhkir-loop plugin" label itself, so you
 always know what changed the screen. You also get a Bismillah line when the
 panel opens, and an "Alhamdulillah · 41s" line after each answer. The hadith
-under the spinner and the hadith of the day stay in the terminal, because VS
-Code puts a frame around anything extra a plugin draws.
+under the spinner and the hadith of the day are not shown in VS Code, because
+VS Code puts a frame around anything extra a plugin draws.
 
 ### In the Desktop app
 
@@ -67,10 +67,11 @@ message. While Claude works, the zikr leads the spinner and Claude's real
 step follows it, with the app's own animation and timer kept:
 
 ```
-•• Al-Muqaddim · The Expediter — Creating notes.md   12s
+•• Al-Muqaddim · The Expediter | Creating notes.md   12s
 ```
 
-After each answer you also get an "Alhamdulillah · 41s" line.
+The line has room for one row only, so a long zikr shows without its meaning
+there. After each answer you also get an "Alhamdulillah · 41s" line.
 
 ## Install
 
@@ -170,9 +171,10 @@ places change the same switches:
 For a cleaner look, turn off **Show tips** in `/config`. That hides Claude
 Code's own tip line, which otherwise sits between the spinner and the hadith.
 
-In a narrow window the plugin makes room on its own: the meaning is left out
-when the line would wrap, and the hadith under the spinner is hidden when the
-window is narrower than 60 columns.
+In a narrow terminal the plugin makes room on its own. The meaning is left
+out when the line would wrap, and a zikr too long for the line is skipped.
+Below about 68 columns nothing fits, so you see Claude's own spinner, with no
+hadith under it, until the window is wider again.
 
 ## What is inside
 
@@ -196,16 +198,22 @@ trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
 `calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
 `$.session.surfaces` (whether you are in the terminal, VS Code or the Desktop
-app), with no file, shell or network access.
+app), with no file, shell or network access. Run it again after each update.
+
+The scripts in `tools/` are only for preparing new content. The maintainer
+runs them by hand, they do fetch from the internet, and the plugin never
+loads them.
 
 ## How it is built
 
-Small on purpose: about 200 lines of plain JavaScript and one content file.
+Small on purpose: about 330 lines of plain JavaScript and one content file.
 
 - **`hooks/register.js`** listens to Claude Code's turn events. When a turn
   starts it picks a random starting word and a hadith, then a timer swaps the
   word every 8 seconds. Turns started by sub-agents are ignored, so a helper
-  task finishing early never stops the main spinner.
+  task finishing early never stops the main spinner. The terminal, VS Code
+  and the Desktop app each draw the spinner differently, so each has its own
+  small renderer.
 - **`hooks/picker.js`** holds the pure logic: which word to show at a given
   second, the hadith of the day (same for everyone on the same date), and
   fitting the line to a narrow window. Pure functions, so they are easy to test.

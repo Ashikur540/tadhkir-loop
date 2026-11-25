@@ -78,8 +78,10 @@ Over time the product should do three things (in phases):
   Users in different time zones can see different hadith at the same moment.
 - Each turn starts the spinner rotation at a random point in the pool, and
   the 8 seconds count from the start of the turn.
-- When the terminal is narrower than 60 columns, the hadith line is hidden
-  instead of squeezed. Religious text is never cut off mid-sentence.
+- When the terminal is too narrow for any zikr (about 68 columns, set by the
+  room Claude Code's status needs), the plugin steps aside and the hadith line
+  goes with it, instead of being squeezed. Religious text is never cut off
+  mid-sentence.
 - Hadith candidates are limited to about 200 characters of shown text.
 - Minimum Claude Code version: 2.1.299.
 

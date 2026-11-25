@@ -74,12 +74,39 @@ test('on the desktop only the words change: the zikr leads, Claude Code\'s step 
   // and elapsed time (a plugin's own tree there drops both)
   const pool = [...raw.zikr, ...raw.names]
   const word = seen.at(-1) ?? ''
-  expect(word.endsWith(' — Creating notes.md')).toBe(true)
-  expect(pool.some((x: any) => word === `${x.en} · ${x.meaning} — Creating notes.md`)).toBe(true)
+  // "|" reads as two separate things, so the step never seems to describe the name
+  expect(word.endsWith(' | Creating notes.md')).toBe(true)
+  const zikr = word.slice(0, -' | Creating notes.md'.length)
+  expect(pool.some((x: any) => zikr === x.en || zikr === `${x.en} · ${x.meaning}`)).toBe(true)
   const texts: any[] = await ui.findAll({ type: 'Text' })
   expect(texts.some((t) => t.props?.color === 'success')).toBe(false)
   expect(await ui.find({ type: 'Box' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+})
+test('on the desktop a long zikr drops its meaning, and no entry is ever cut', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Working' } })
+  for (let i = 0; i < 115; i++) await clock.advance(8000)
+  const pool = [...raw.zikr, ...raw.names]
+  const parts = [...new Set(seen)].map((w) => w.slice(0, -' | Working'.length))
+  // The desktop line never wraps, so the zikr part stays short enough to leave room for the step
+  for (const part of parts) {
+    const whole = pool.find((x: any) => part === x.en || part === `${x.en} · ${x.meaning}`)
+    expect(whole).toBeDefined()
+    if (part !== whole.en) expect(part.length).toBeLessThanOrEqual(40)
+  }
+  expect(parts.some((p) => pool.some((x: any) => p === x.en && `${x.en} · ${x.meaning}`.length > 40))).toBe(true)
+})
+test('a second main turn replaces the first turn\'s timer', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); stubs(on, seen)
+  await $.turn.start({ text: 'one', turnId: 't1' })
+  await $.turn.start({ text: 'two', turnId: 't2' })
+  await $.ui.mount(SPINNER)
+  await $.turn.complete(done('t2'))
+  const count = seen.length
+  await clock.advance(24000)
+  expect(seen.length).toBe(count)
 })
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)
@@ -241,6 +268,15 @@ test('in a narrow window every spinner word fits on one line', async ($, on) => 
   for (let i = 0; i < 115; i++) await clock.advance(8000)
   expect(seen.length).toBeGreaterThan(100)
   expect(seen.filter((w) => 2 + w.length + 60 > 80)).toEqual([])
+})
+test('the start card stays hidden while Claude is working, as after a reload mid-turn', async ($, on) => {
+  mock.clock(on)
+  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  const working = { ...BAND.props, isWorking: true }
+  const terminal = await $.ui.mount({ ...BAND, props: working })
+  expect(await terminal.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+  const desktop = await $.ui.mount({ ...BAND, requestId: 'band-desktop', surface: 'desktop', props: working })
+  expect(await desktop.find({ type: 'Text', text: 'Bismillah' })).toBeUndefined()
 })
 test('a survey in the band is left alone', async ($, on) => {
   mock.clock(on)

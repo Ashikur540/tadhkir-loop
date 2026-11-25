@@ -14,6 +14,8 @@ const STAR_MS = 120
 // Apps with a window of their own: they run Claude like an SDK host (not interactive), attach
 // their window, and draw their own done line
 const APPS = ['vscode', 'desktop']
+// Longest zikr part (name and meaning) on the desktop's one-line spinner, leaving room for the step
+const DESKTOP_ZIKR_MAX = 40
 
 // The main loop's current turn. Subagent turns are ignored, so one
 // finishing early can't stop the main spinner's rotation.
@@ -43,13 +45,15 @@ export function register(on, options) {
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
-    timer?.cancel()
     mainTurnId = e.turnId
     turnStart = await $.clock.now()
     turnOffset = Math.floor(Math.random() * poolLength)
     turnHadith = randomHadith(CONTENT, Math.random)
     // VS Code needs a redraw for every star frame; elsewhere only for the next word
     const surfaces = await $.session.surfaces().catch(() => [])
+    // A later turn started while we waited: it owns the timer now
+    if (mainTurnId !== e.turnId) return next(e)
+    timer?.cancel()
     timer = $.clock.every(surfaces?.includes('vscode') ? STAR_MS : ROTATE_MS, () => {
       if (mainTurnId) $.ui.invalidate('ui.render')
     })
@@ -94,7 +98,9 @@ export function register(on, options) {
     if (e.surface === 'desktop') {
       // A plugin's own tree there drops the app's animated icon and elapsed time, so only the
       // words change: the zikr leads, and Claude's real step ("Creating notes.md") follows
-      return next({ ...e, props: { ...e.props, word: `${entry.en}${meaning} — ${e.props.word}` } })
+      // The line never wraps, so a long meaning is dropped whole rather than cut
+      const zikr = (entry.en + meaning).length <= DESKTOP_ZIKR_MAX ? entry.en + meaning : entry.en
+      return next({ ...e, props: { ...e.props, word: `${zikr} | ${e.props.word}` } })
     }
     if (e.surface === 'vscode') {
       // VS Code puts a plugin's name before a rewritten word, so the zikr gets a line of our
@@ -151,7 +157,8 @@ export function register(on, options) {
   // The log line can't hold line breaks, so the hadith of the day gets the band above the
   // prompt, until the first message; on the desktop, under a Bismillah its start page lacks
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!showCard || !['terminal', 'desktop'].includes(e.surface) || e.props.hasSurvey || e.props.view?.agentId) {
+    const hidden = !showCard || e.props.isWorking || e.props.hasSurvey || e.props.view?.agentId
+    if (hidden || !['terminal', 'desktop'].includes(e.surface)) {
       return next(e)
     }
     const h = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null

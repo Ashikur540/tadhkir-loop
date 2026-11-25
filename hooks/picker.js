@@ -11,13 +11,19 @@ const MIN_HADITH_COLUMNS = 60
 // the window wraps, and the fullscreen renderer then leaves stale rows behind.
 const SPINNER_EXTRA = 60
 
-const filled = (v) => typeof v === 'string' && v.trim() !== ''
+// Content is printed to terminals: refuse control characters (escape sequences)
+// and bidirectional overrides, which could hide or reorder text.
+const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f\u202A-\u202E\u2066-\u2069]/
+const SUNNAH_URL = /^https:\/\/sunnah\.com\//
+
+const filled = (v) => typeof v === 'string' && v.trim() !== '' && !UNSAFE_CHARS.test(v)
 const list = (v) => (Array.isArray(v) ? v : [])
 
 const isEntry = (x) => !!x && filled(x.en) && filled(x.meaning)
 const isHadith = (x) =>
   !!x && (x.collection === 'Bukhari' || x.collection === 'Muslim') &&
-  ['id', 'number', 'narrator', 'en', 'url'].every((k) => filled(x[k]))
+  ['id', 'number', 'narrator', 'en', 'url'].every((k) => filled(x[k])) &&
+  SUNNAH_URL.test(x.url)
 
 /** @returns {Content | null} */
 export function loadContent(raw) {

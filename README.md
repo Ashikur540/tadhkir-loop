@@ -146,8 +146,9 @@ claude plugin marketplace remove tadhkir-loop
 ## Settings
 
 In the terminal, open `/config` and look for Tadhkir Loop. In VS Code,
-`/config` opens VS Code's own settings instead: type `/plugins` and click the
-gear icon on the Tadhkir Loop row. Both places change the same switches:
+`/config` opens VS Code's own settings instead: open **Manage plugins** in
+the Claude panel and click the gear icon on the Tadhkir Loop row. Both
+places change the same switches:
 
 - **Show hadith**: the hadith under the spinner and the hadith of the day
   card. On by default.

@@ -66,11 +66,17 @@ test('done line leaves the waiting-for-agents text and the ctrl+o view to Claude
   const expanded = await $.ui.mount({ ...DONE, requestId: 'm3', props: { ...DONE.props, isExpanded: true } })
   expect(await expanded.find({ type: 'Text', text: 'engine line' })).toBeDefined()
 })
-test('on the desktop the spinner keeps Claude Code\'s step text', async ($, on) => {
+test('on the desktop the spinner keeps Claude Code\'s step text, with the zikr on a line under it', async ($, on) => {
   const seen: string[] = []; mock.clock(on); stubs(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
   const ui = await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Creating notes.md' } })
+  // The real step stays as Claude Code drew it
   expect(seen.at(-1)).toBe('Creating notes.md')
+  expect(await ui.find({ type: 'Text', text: 'Creating notes.md|…' })).toBeDefined()
+  const words = new Set([...raw.zikr, ...raw.names].map((x) => x.en))
+  const texts: any[] = await ui.findAll({ type: 'Text' })
+  expect(words.has(texts.find((t) => t.props?.color === 'success')?.children?.[0])).toBe(true)
+  expect(await ui.find({ type: 'Text', text: /^ · .+…$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {
@@ -121,18 +127,29 @@ test('a -p or SDK run logs no Bismillah', async ($, on) => {
   await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
   expect(logs).toEqual([])
 })
-// VS Code runs Claude like an SDK host (not interactive), then attaches its panel
-const vscode = async ($: any, on: any, logs: string[], attach = true) => {
+// VS Code and the Desktop app run Claude like an SDK host (not interactive), then attach their window
+const app = (surface: 'vscode' | 'desktop') => async ($: any, on: any, logs: string[], attach = true) => {
   mock.clock(on)
   on('session.start', () => ({ cwd: '/work' }))
   on('session.attach', ($: any, e: any) => ({ clientId: e.clientId }))
-  on('session.surfaces', () => ({ value: ['vscode'] }))
+  on('session.surfaces', () => ({ value: [surface] }))
   on('ui.log', ($: any, e: any) => { logs.push(e.text); return { value: undefined } })
   on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
-  if (attach) await $.session.attach({ surface: 'vscode', clientId: 'vscode-1' })
+  if (attach) await $.session.attach({ surface, clientId: surface + '-1' })
 }
+const vscode = app('vscode')
+const desktop = app('desktop')
+test('in the Desktop app, Bismillah once when it attaches, and Alhamdulillah after a finished answer', async ($, on) => {
+  const logs: string[] = []; await desktop($, on, logs)
+  await $.session.attach({ surface: 'desktop', clientId: 'desktop-1' })
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.turn.complete(done('t1', 41000))
+  await $.turn.start({ text: 'again', turnId: 't2' })
+  await $.turn.complete({ ...done('t2', 3000), isAborted: true, reason: 'aborted' })
+  expect(logs).toEqual(['Bismillah', 'Alhamdulillah · 41s'])
+})
 test('in VS Code, Bismillah once when the panel attaches, even if it attaches again', async ($, on) => {
   const logs: string[] = []; await vscode($, on, logs)
   await $.session.attach({ surface: 'vscode', clientId: 'vscode-1' })

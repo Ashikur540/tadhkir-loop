@@ -11,6 +11,9 @@ const CONTENT = loadContent(raw)
 // holds back a picture that keeps animating through a long turn
 const STAR_FRAMES = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
 const STAR_MS = 120
+// Apps with a window of their own: they run Claude like an SDK host (not interactive), attach
+// their window, and draw their own done line
+const APPS = ['vscode', 'desktop']
 
 // The main loop's current turn. Subagent turns are ignored, so one
 // finishing early can't stop the main spinner's rotation.
@@ -60,11 +63,11 @@ export function register(on, options) {
   on('turn.complete', async ($, e, next) => {
     if (e.turnId === mainTurnId) {
       stopTimer()
-      // VS Code keeps its own done line, so it gets a row of its own, for a finished answer
-      // only (not Stop or an error). Asked live: a reload forgets the panel's attach
+      // VS Code and the Desktop app keep their own done line, so they get a row of their own,
+      // for a finished answer only (not Stop or an error). Asked live: a reload forgets the attach
       if (e.reason === 'answer') {
         const surfaces = await $.session.surfaces()
-        if (surfaces.includes('vscode') && !surfaces.includes('terminal')) {
+        if (surfaces.some((s) => APPS.includes(s)) && !surfaces.includes('terminal')) {
           $.ui.log('Alhamdulillah · ' + formatDuration(e.durationMs))
         }
       }
@@ -78,9 +81,7 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    // On the desktop the word is Claude's real step ("Creating notes.md"); keep it.
-    // VS Code shows a fun word ("Pondering"), like the terminal
-    if ((e.surface !== 'terminal' && e.surface !== 'vscode') || e.props.message) return next(e)
+    if (!['terminal', ...APPS].includes(e.surface) || e.props.message) return next(e)
     // The width rule is for the terminal, where Claude's status shares the spinner line.
     // VS Code puts its status on its own line, wraps text, and reports far fewer columns than it shows
     const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
@@ -88,18 +89,22 @@ export function register(on, options) {
     const entry = wordAt(CONTENT, elapsed, turnOffset, columns)
     if (!entry) return next(e)
     const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
-    if (e.surface === 'vscode') {
-      // VS Code puts a plugin's name before a rewritten word. Our own line keeps the name off
-      // the zikr (VS Code shows it as a header instead) and lets it take color; no hadith there
+    if (e.surface !== 'terminal') {
+      // The apps put a plugin's name before a rewritten word, so the zikr gets a line of our
+      // own (the app shows the name as a header instead) and can take color; no hadith there
       const { Box, Text } = $.ui.resolve(e)
+      const zikr = Text({ children: [
+        Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
+        Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
+      ] })
+      // On the desktop the word is Claude's real step ("Creating notes.md"): keep that row whole
+      if (e.surface === 'desktop') return Box({ flexDirection: 'column', children: [await next(e), zikr] })
+      // VS Code shows a fun word ("Pondering"), so our line takes its place, star and all
       const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
       return Box({ flexDirection: 'row', children: [
         // A fixed slot, as Claude's own star has, so the narrow frames don't shift the words
         Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
-        Text({ children: [
-          Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-          Text({ dimColor: true, children: [parts.suffix ?? '…'] }),
-        ] }),
+        zikr,
       ] })
     }
     const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
@@ -130,8 +135,8 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
-    // Once per session, though the panel attaches again when it is reopened
-    if (e.surface === 'vscode' && !saidBismillah) {
+    // Once per session, though the window attaches again when it is reopened
+    if (APPS.includes(e.surface) && !saidBismillah) {
       $.ui.log('Bismillah')
       saidBismillah = true
     }

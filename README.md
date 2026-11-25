@@ -50,7 +50,7 @@ color and Claude's sparkling star:
 
 ```
 From the tadhkir-loop plugin
-✻ Al-Muqaddim · The Expediter…
+✻ Al-Muqaddim · The Expediter
 ```
 
 VS Code adds the small "From the tadhkir-loop plugin" label itself, so you
@@ -58,6 +58,19 @@ always know what changed the screen. You also get a Bismillah line when the
 panel opens, and an "Alhamdulillah · 41s" line after each answer. The hadith
 under the spinner and the hadith of the day stay in the terminal, because VS
 Code puts a frame around anything extra a plugin draws.
+
+### In the Desktop app
+
+A new Claude Code session in the Desktop app starts with Bismillah and the
+hadith of the day just above the message box, until you send your first
+message. While Claude works, the zikr leads the spinner and Claude's real
+step follows it, with the app's own animation and timer kept:
+
+```
+•• Al-Muqaddim · The Expediter — Creating notes.md   12s
+```
+
+After each answer you also get an "Alhamdulillah · 41s" line.
 
 ## Install
 
@@ -136,10 +149,10 @@ claude plugin marketplace remove tadhkir-loop
 - **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.
   Start a new Claude session after installing; an open one keeps running
   without the plugin.
-- **You use the Desktop app:** the zikr does not show there for now. Its
-  spinner shows what Claude is really doing ("Creating notes.md"), and the
-  zikr would hide that. Plugins do not load in WSL sessions of the Desktop
-  app; Claude Code run in a WSL terminal works as normal.
+- **You use the Desktop app:** see [In the Desktop app](#in-the-desktop-app)
+  for what shows there. Start a new session after installing. Plugins do not
+  load in WSL sessions of the Desktop app; Claude Code run in a WSL terminal
+  works as normal.
 - Still stuck? Open an issue on this repo with your `claude --version` and
   your operating system.
 
@@ -182,8 +195,8 @@ Claude Code plugins can run code on your machine, so only install ones you
 trust. You can check what this one does yourself: after Step 2, run
 `claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
 `calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
-`$.session.surfaces` (whether you are in the terminal or VS Code), with no
-file, shell or network access.
+`$.session.surfaces` (whether you are in the terminal, VS Code or the Desktop
+app), with no file, shell or network access.
 
 ## How it is built
 

@@ -239,6 +239,18 @@ test('reopening a Desktop or VS Code conversation adds no second Bismillah', asy
   expect(logs).toEqual([])
 })
 
+test('a new Desktop session started by its first message still gets Bismillah', async ($, on) => {
+  // With no spare process ready, the app starts Claude Code with the first message, so by
+  // the time the window attaches the count already includes it
+  const logs: string[] = []
+  let started = false
+  on('session.turns', () => ({ value: started ? 1 : 0 }))
+  await desktop($, on, logs, false)
+  started = true
+  await $.session.attach({ surface: 'desktop', clientId: 'app-1' })
+  expect(logs).toEqual(['Bismillah'])
+})
+
 // ---- VS Code ----
 
 test('in VS Code the spinner becomes our own colored zikr line, with no hadith', async ($, on) => {

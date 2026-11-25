@@ -107,6 +107,9 @@ export function register(on, options) {
   // The start card stays above the prompt until the first message.
   let startCard = true
   let greeted = false
+  // Read at session.start, which comes before the first prompt. The apps may attach
+  // only after a first message has started the process, so reading then would miss.
+  let underway = false
 
   function endTurn() {
     turn.id = null
@@ -165,14 +168,15 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.start', async ($, e, next) => {
+    underway = await isUnderway($)
     // Only where a person reads it: a -p or SDK host would get it as a message.
-    if (e.isInteractive && firstGreeting() && !(await isUnderway($))) $.ui.log(BISMILLAH)
+    if (e.isInteractive && !underway && firstGreeting()) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
     // The apps start non-interactive and greet when their window attaches.
-    if (APP_SURFACES.includes(e.surface) && firstGreeting() && !(await isUnderway($))) $.ui.log(BISMILLAH)
+    if (APP_SURFACES.includes(e.surface) && !underway && firstGreeting()) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 

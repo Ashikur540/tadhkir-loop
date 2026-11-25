@@ -36,8 +36,8 @@ export function register(on, options) {
     showMeaning: options?.show_meaning !== false,
   }
   const poolLength = CONTENT.zikr.length + CONTENT.names.length
-  // Hadith of the day above the prompt, hidden once the first message goes
-  let showCard = opts.showHadith
+  // The start card above the prompt, hidden once the first message goes
+  let showCard = true
   // VS Code runs Claude like an SDK host (not interactive), so its Bismillah waits for its panel
   let saidBismillah = false
 
@@ -148,17 +148,23 @@ export function register(on, options) {
     return next(e)
   }).catch(() => undefined)
 
-  // The log line can't hold line breaks, so the hadith of the day gets the band
-  // above the prompt, until the first message
+  // The log line can't hold line breaks, so the hadith of the day gets the band above the
+  // prompt, until the first message; on the desktop, under a Bismillah its start page lacks
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const h = showCard && e.surface === 'terminal' && !e.props.hasSurvey && !e.props.view?.agentId
-      ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
-    if (!h) return next(e)
-    const { quote, source } = hadithParts(h)
+    if (!showCard || !['terminal', 'desktop'].includes(e.surface) || e.props.hasSurvey || e.props.view?.agentId) {
+      return next(e)
+    }
+    const h = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
+    // The terminal says Bismillah as a log line; the desktop's start page shows no log lines
+    const bismillah = e.surface === 'desktop'
+    if (!h && !bismillah) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const card = Box({ flexDirection: 'column', paddingLeft: 2, children: [
-      Text({ dimColor: true, italic: true, children: [quote] }),
-      Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [source] })] }),
+      ...(bismillah ? [Text({ color: 'success', weight: 'semibold', children: ['Bismillah'] })] : []),
+      ...(h ? [
+        Text({ dimColor: true, italic: true, children: [hadithParts(h).quote] }),
+        Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [hadithParts(h).source] })] }),
+      ] : []),
     ] })
     // Keep other mods' bands, as the band docs ask
     const theirs = await next(e)

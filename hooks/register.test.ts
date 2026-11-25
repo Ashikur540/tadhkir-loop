@@ -205,11 +205,27 @@ test('hadith of the day sits above the prompt until the first message', async ($
   await $.turn.start({ text: 'hi', turnId: 't1' })
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
-test('the desktop band gets no card until it has been checked there', async ($, on) => {
+test('the Desktop start page shows Bismillah and the hadith of the day until the first message', async ($, on) => {
   mock.clock(on)
   on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
   const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  // The desktop's start page shows no log lines, so Bismillah goes in the band
+  expect(await ui.find({ type: 'Text', text: 'Bismillah' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeDefined()
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  expect(await ui.find({ type: 'Text', text: 'Bismillah' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+})
+test('with Show hadith off, the Desktop start page still says Bismillah, and the terminal band stays empty', { options: { show_hadith: false } }, async ($, on) => {
+  mock.clock(on)
+  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: 'Bismillah' })).toBeDefined()
+  expect(await desktop.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
+  const terminal = await $.ui.mount({ ...BAND, requestId: 'band-terminal' })
+  expect(await terminal.find({ type: 'Text', text: 'Bismillah' })).toBeUndefined()
+  expect(await terminal.find({ type: 'Text', text: /^".+"$/ })).toBeUndefined()
 })
 test('the card keeps what other mods draw in the band', async ($, on) => {
   mock.clock(on)

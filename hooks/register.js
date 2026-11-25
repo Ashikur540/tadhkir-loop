@@ -1,34 +1,96 @@
-// Tadhkir Loop: zikr and names in the spinner, a hadith under it,
-// Alhamdulillah on the done line, Bismillah and the hadith of the day at startup.
+/**
+ * Tadhkir Loop hooks: zikr and the names of Allah in Claude Code's spinner, a hadith
+ * under it, Bismillah when a session starts and Alhamdulillah when a turn ends.
+ *
+ * The terminal, VS Code and the Desktop app each draw plugin content differently,
+ * so the spinner has one renderer per surface.
+ */
 import raw from '../data/content.js'
 import { loadContent, wordAt, hadithOfDay, randomHadith, hadithParts,
-  formatDuration, spinnerParts } from './picker.js'
+  doneText, spinnerParts, ROTATE_MS } from './picker.js'
 
-const ROTATE_MS = 8000
 const CONTENT = loadContent(raw)
-// VS Code's spinner star: our line replaces Claude's animated one, so we flip through Claude's own
-// frames as text, redrawing every 120 ms. An animated picture moves on its own, but VS Code
-// holds back a picture that keeps animating through a long turn
+const BISMILLAH = 'Bismillah'
+
+/** Claude's own spinner frames, in the order it plays them. */
 const STAR_FRAMES = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
 const STAR_MS = 120
-// Apps with a window of their own: they run Claude like an SDK host (not interactive), attach
-// their window, and draw their own done line
-const APPS = ['vscode', 'desktop']
-// Longest zikr part (name and meaning) on the desktop's one-line spinner, leaving room for the step
+
+/** Surfaces that attach a window to a non-interactive session and draw their own done line. */
+const APP_SURFACES = ['vscode', 'desktop']
+
+/** Surfaces whose band above the prompt shows the start card. */
+const CARD_SURFACES = ['terminal', 'desktop']
+
+/** Longest zikr text on the desktop's one-line spinner; a longer meaning is dropped whole. */
 const DESKTOP_ZIKR_MAX = 40
+/** Sits between the zikr and Claude's step, e.g. `SubhanAllah | Reading notes.md`. */
+const DESKTOP_SEPARATOR = ' | '
 
-// The main loop's current turn. Subagent turns are ignored, so one
-// finishing early can't stop the main spinner's rotation.
-let mainTurnId = null
-let turnStart = 0
-let turnOffset = 0
-let turnHadith = null
-let timer = null
+/** The quote with its source indented under it. */
+function hadithBlock({ Box, Text }, { quote, source }, layout = {}) {
+  return Box({ flexDirection: 'column', ...layout, children: [
+    Text({ dimColor: true, italic: true, children: [quote] }),
+    Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [source] })] }),
+  ] })
+}
 
-function stopTimer() {
-  mainTurnId = null
-  timer?.cancel()
-  timer = null
+// The spinner is drawn differently on each surface. The tool that loads this module
+// follows $ only into functions declared at the top of the file, so each surface has
+// its own named renderer rather than a method in a table.
+
+// Claude's status shares this line, so the width matters; the hadith goes underneath.
+async function terminalSpinner($, e, next, { entry, columns, hadith, opts }) {
+  const parts = spinnerParts(entry, hadith, opts, columns)
+  const props = { ...e.props, word: entry.en, ...(parts.meaning && { suffix: parts.meaning + '…' }) }
+  const theirs = await next({ ...e, props })
+  if (!parts.quote) return theirs
+  const ui = $.ui.resolve(e)
+  // The indent keeps wrapped lines aligned; the margin sets it apart from Claude's tip.
+  return ui.Box({ flexDirection: 'column', children: [
+    theirs, hadithBlock(ui, parts, { marginTop: 1, paddingLeft: 4 }),
+  ] })
+}
+
+// VS Code puts the plugin's name before a rewritten word, so we draw the whole line,
+// star included. The star is text because VS Code pauses long-running animated images.
+function vscodeSpinner($, e, { entry, elapsed, opts }) {
+  const { Box, Text } = $.ui.resolve(e)
+  const { meaning } = spinnerParts(entry, null, opts)
+  const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
+  return Box({ flexDirection: 'row', children: [
+    // A fixed-width slot, like Claude's own, so the narrow frames don't shift the text.
+    Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
+    Text({ children: [
+      Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
+      Text({ dimColor: true, children: [meaning ?? ''] }),
+    ] }),
+  ] })
+}
+
+// The desktop drops its animated icon and timer when a plugin draws its own tree, and its
+// line never wraps, so only the words change: the zikr, then Claude's real step.
+function desktopSpinner(e, next, { entry, opts }) {
+  const { meaning } = spinnerParts(entry, null, opts)
+  const full = entry.en + (meaning ?? '')
+  const zikr = full.length <= DESKTOP_ZIKR_MAX ? full : entry.en
+  return next({ ...e, props: { ...e.props, word: `${zikr}${DESKTOP_SEPARATOR}${e.props.word}` } })
+}
+
+/**
+ * The surfaces we draw the spinner on.
+ *   redrawMs       how often the line needs redrawing while a turn runs
+ *   measuresWidth  whether the window width limits what fits on the line
+ */
+const SPINNER_SURFACES = {
+  terminal: { redrawMs: ROTATE_MS, measuresWidth: true },
+  vscode: { redrawMs: STAR_MS, measuresWidth: false },
+  desktop: { redrawMs: ROTATE_MS, measuresWidth: false },
+}
+
+/** The surfaces showing this session; empty when they can't be read. */
+async function readSurfaces($) {
+  return (await $.session.surfaces().catch(() => null)) ?? []
 }
 
 export function register(on, options) {
@@ -38,143 +100,117 @@ export function register(on, options) {
     showMeaning: options?.show_meaning !== false,
   }
   const poolLength = CONTENT.zikr.length + CONTENT.names.length
-  // The start card above the prompt, hidden once the first message goes
-  let showCard = true
-  // VS Code runs Claude like an SDK host (not interactive), so its Bismillah waits for its panel
-  let saidBismillah = false
+  // The main loop's current turn. Subagent turns are ignored, so one finishing early
+  // can't stop the main spinner.
+  const turn = { id: null, start: 0, offset: 0, hadith: null, timer: null }
+  // The start card stays above the prompt until the first message.
+  let startCard = true
+  let greeted = false
 
+  function endTurn() {
+    turn.id = null
+    turn.timer?.cancel()
+    turn.timer = null
+  }
+
+  /** True the first time only, so Bismillah is said once per session. */
+  function firstGreeting() {
+    if (greeted) return false
+    greeted = true
+    return true
+  }
+
+  // Every hook below ends in .catch, so a failing hook is skipped and never breaks Claude Code.
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
-    mainTurnId = e.turnId
-    turnStart = await $.clock.now()
-    turnOffset = Math.floor(Math.random() * poolLength)
-    turnHadith = randomHadith(CONTENT, Math.random)
-    // VS Code needs a redraw for every star frame; elsewhere only for the next word
-    const surfaces = await $.session.surfaces().catch(() => [])
-    // A later turn started while we waited: it owns the timer now
-    if (mainTurnId !== e.turnId) return next(e)
-    timer?.cancel()
-    timer = $.clock.every(surfaces?.includes('vscode') ? STAR_MS : ROTATE_MS, () => {
-      if (mainTurnId) $.ui.invalidate('ui.render')
+    turn.id = e.turnId
+    turn.start = await $.clock.now()
+    turn.offset = Math.floor(Math.random() * poolLength)
+    turn.hadith = randomHadith(CONTENT, Math.random)
+    const drawn = await readSurfaces($)
+    // A later turn started while we waited, and it owns the timer.
+    if (turn.id !== e.turnId) return next(e)
+    const redrawMs = Math.min(ROTATE_MS, ...drawn.map((s) => SPINNER_SURFACES[s]?.redrawMs ?? ROTATE_MS))
+    turn.timer?.cancel()
+    turn.timer = $.clock.every(redrawMs, () => {
+      if (turn.id) $.ui.invalidate('ui.render')
     })
-    if (showCard) {
-      showCard = false
+    if (startCard) {
+      startCard = false
       $.ui.invalidate('ui.render')
     }
     return next(e)
   }).catch(() => undefined)
 
   on('turn.complete', async ($, e, next) => {
-    if (e.turnId === mainTurnId) {
-      stopTimer()
-      // VS Code and the Desktop app keep their own done line, so they get a row of their own,
-      // for a finished answer only (not Stop or an error). Asked live: a reload forgets the attach
-      if (e.reason === 'answer') {
-        const surfaces = await $.session.surfaces()
-        if (surfaces.some((s) => APPS.includes(s)) && !surfaces.includes('terminal')) {
-          $.ui.log('Alhamdulillah · ' + formatDuration(e.durationMs))
-        }
+    if (e.turnId !== turn.id) return next(e)
+    endTurn()
+    // The apps keep their own done line, so they get a row of their own, for a finished
+    // answer only. Read the surfaces now: a reload does not raise session.attach again.
+    if (e.reason === 'answer') {
+      const drawn = await readSurfaces($)
+      if (drawn.some((s) => APP_SURFACES.includes(s)) && !drawn.includes('terminal')) {
+        $.ui.log(doneText(e.durationMs))
       }
     }
     return next(e)
   }).catch(() => undefined)
 
   on('session.end', async ($, e, next) => {
-    stopTimer()
+    endTurn()
     return next(e)
   }).catch(() => undefined)
 
-  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (!['terminal', ...APPS].includes(e.surface) || e.props.message) return next(e)
-    // The width rule is for the terminal, where Claude's status shares the spinner line.
-    // VS Code puts its status on its own line, wraps text, and reports far fewer columns than it shows
-    const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
-    const elapsed = (await $.clock.now()) - turnStart
-    const entry = wordAt(CONTENT, elapsed, turnOffset, columns)
-    if (!entry) return next(e)
-    const parts = spinnerParts(entry, e.surface === 'terminal' ? turnHadith : null, opts, columns)
-    // The apps' line: no trailing "…", which after a meaning reads as cut-off text
-    const meaning = (parts.suffix ?? '').replace(/…$/, '')
-    if (e.surface === 'desktop') {
-      // A plugin's own tree there drops the app's animated icon and elapsed time, so only the
-      // words change: the zikr leads, and Claude's real step ("Creating notes.md") follows
-      // The line never wraps, so a long meaning is dropped whole rather than cut
-      const zikr = (entry.en + meaning).length <= DESKTOP_ZIKR_MAX ? entry.en + meaning : entry.en
-      return next({ ...e, props: { ...e.props, word: `${zikr} | ${e.props.word}` } })
-    }
-    if (e.surface === 'vscode') {
-      // VS Code puts a plugin's name before a rewritten word, so the zikr gets a line of our
-      // own (VS Code shows the name as a header instead) and can take color; no hadith there
-      const { Box, Text } = $.ui.resolve(e)
-      const zikr = Text({ children: [
-        Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-        Text({ dimColor: true, children: [meaning] }),
-      ] })
-      // VS Code shows a fun word ("Pondering"), so our line takes its place, star and all
-      const star = STAR_FRAMES[Math.floor(elapsed / STAR_MS) % STAR_FRAMES.length]
-      return Box({ flexDirection: 'row', children: [
-        // A fixed slot, as Claude's own star has, so the narrow frames don't shift the words
-        Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
-        zikr,
-      ] })
-    }
-    const theirs = await next({ ...e, props: { ...e.props, word: entry.en, ...(parts.suffix ? { suffix: parts.suffix } : {}) } })
-    if (!parts.quote) return theirs
-    const { Box, Text } = $.ui.resolve(e)
-    // paddingLeft keeps wrapped lines in one column; the blank row sets it apart from Claude's tip
-    const hadith = Box({ flexDirection: 'column', marginTop: 1, paddingLeft: 4, children: [
-      Text({ dimColor: true, italic: true, children: [parts.quote] }),
-      Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [parts.source] })] }),
-    ] })
-    return Box({ flexDirection: 'column', children: [theirs, hadith] })
-  }).catch(() => undefined)
-
-  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    // "Waiting for 2 background agents" and the ctrl+o view stay Claude Code's
-    if (e.props.waitingFor || e.props.isExpanded) return next(e)
-    const { Text } = $.ui.resolve(e)
-    return Text({ dimColor: true, children: ['✻ Alhamdulillah · ' + formatDuration(e.props.durationMs)] })
-  }).catch(() => undefined)
-
   on('session.start', async ($, e, next) => {
-    // Only where a person reads it: a -p or SDK host would get it as a message
-    if (e.isInteractive) {
-      $.ui.log('Bismillah')
-      saidBismillah = true
-    }
+    // Only where a person reads it: a -p or SDK host would get it as a message.
+    if (e.isInteractive && firstGreeting()) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
-    // Once per session, though the window attaches again when it is reopened
-    if (APPS.includes(e.surface) && !saidBismillah) {
-      $.ui.log('Bismillah')
-      saidBismillah = true
-    }
+    // The apps start non-interactive and greet when their window attaches.
+    if (APP_SURFACES.includes(e.surface) && firstGreeting()) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 
-  // The log line can't hold line breaks, so the hadith of the day gets the band above the
-  // prompt, until the first message; on the desktop, under a Bismillah its start page lacks
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    const surface = SPINNER_SURFACES[e.surface]
+    // A status message such as "Compacting conversation" stays Claude Code's.
+    if (!surface || e.props.message) return next(e)
+    const columns = surface.measuresWidth ? e.viewport?.columns : undefined
+    const elapsed = (await $.clock.now()) - turn.start
+    const entry = wordAt(CONTENT, elapsed, turn.offset, columns)
+    if (!entry) return next(e)
+    const ctx = { entry, elapsed, columns, hadith: turn.hadith, opts }
+    if (e.surface === 'vscode') return vscodeSpinner($, e, ctx)
+    if (e.surface === 'desktop') return desktopSpinner(e, next, ctx)
+    return terminalSpinner($, e, next, ctx)
+  }).catch(() => undefined)
+
+  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    // "Waiting for 2 background agents" and the ctrl+o view stay Claude Code's.
+    if (e.props.waitingFor || e.props.isExpanded) return next(e)
+    const { Text } = $.ui.resolve(e)
+    return Text({ dimColor: true, children: ['✻ ' + doneText(e.props.durationMs)] })
+  }).catch(() => undefined)
+
+  // The start card: the hadith of the day, which a one-line log can't hold. The desktop's
+  // start page shows no log lines, so there the card carries Bismillah too.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const hidden = !showCard || e.props.isWorking || e.props.hasSurvey || e.props.view?.agentId
-    if (hidden || !['terminal', 'desktop'].includes(e.surface)) {
+    const { isWorking, hasSurvey, view } = e.props
+    if (!startCard || isWorking || hasSurvey || view?.agentId || !CARD_SURFACES.includes(e.surface)) {
       return next(e)
     }
-    const h = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
-    // The terminal says Bismillah as a log line; the desktop's start page shows no log lines
-    const bismillah = e.surface === 'desktop'
-    if (!h && !bismillah) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
-    const card = Box({ flexDirection: 'column', paddingLeft: 2, children: [
-      ...(bismillah ? [Text({ color: 'success', weight: 'semibold', children: ['Bismillah'] })] : []),
-      ...(h ? [
-        Text({ dimColor: true, italic: true, children: [hadithParts(h).quote] }),
-        Box({ paddingLeft: 2, children: [Text({ dimColor: true, children: [hadithParts(h).source] })] }),
-      ] : []),
+    const hadith = opts.showHadith ? hadithOfDay(CONTENT, new Date(await $.clock.now())) : null
+    const withBismillah = e.surface === 'desktop'
+    if (!hadith && !withBismillah) return next(e)
+    const ui = $.ui.resolve(e)
+    const card = ui.Box({ flexDirection: 'column', paddingLeft: 2, children: [
+      ...(withBismillah ? [ui.Text({ color: 'success', weight: 'semibold', children: [BISMILLAH] })] : []),
+      ...(hadith ? [hadithBlock(ui, hadithParts(hadith))] : []),
     ] })
-    // Keep other mods' bands, as the band docs ask
+    // Keep other plugins' bands, as the band contract asks.
     const theirs = await next(e)
-    return Box({ flexDirection: 'column', children: theirs ? [card, theirs] : [card] })
+    return ui.Box({ flexDirection: 'column', children: theirs ? [card, theirs] : [card] })
   }).catch(() => undefined)
 }

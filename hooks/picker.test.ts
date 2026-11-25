@@ -69,16 +69,15 @@ test('spinnerParts honours switches, width and long lines', () => {
   const e = { en: 'Ar-Rahman', meaning: 'The Most Merciful' }
   const h = H('1') as any
   const on = { showHadith: true, showMeaning: true }
-  expect(spinnerParts(e, h, on, 100)).toEqual({ suffix: ' · The Most Merciful…',
+  expect(spinnerParts(e, h, on, 100)).toEqual({ meaning: ' · The Most Merciful',
     quote: '"Fixture saying 1."', source: '~ Test Narrator · Bukhari 1' })
-  expect(spinnerParts(e, h, on, 59)).toMatchObject({ quote: null, source: null })  // under 60 columns
-  expect(spinnerParts(e, h, on, undefined).quote).not.toBe(null)                 // not measured: treat as wide
-  expect(spinnerParts(e, h, { ...on, showMeaning: false }, 100).suffix).toBe(null)
+  expect(spinnerParts(e, h, on, undefined).meaning).not.toBe(null)               // not measured: treat as wide
+  expect(spinnerParts(e, h, { ...on, showMeaning: false }, 100).meaning).toBe(null)
   expect(spinnerParts(e, h, { ...on, showHadith: false }, 100)).toMatchObject({ quote: null, source: null })
   expect(spinnerParts(e, null, on, 100)).toMatchObject({ quote: null, source: null })
   const long = { en: 'La hawla wa la quwwata illa billah', meaning: 'There is no power or strength except through Allah' }
-  expect(spinnerParts(long, h, on, 70).suffix).toBe(null)                        // would wrap: drop meaning
-  expect(spinnerParts(long, h, on, 160).suffix).not.toBe(null)
+  expect(spinnerParts(long, h, on, 70).meaning).toBe(null)                       // would wrap: drop meaning
+  expect(spinnerParts(long, h, on, 160).meaning).not.toBe(null)
 })
 test('wordAt skips words that would wrap the spinner line, and gives null when none fit', () => {
   const long = 'La hawla wa la quwwata illa billah'
@@ -93,7 +92,8 @@ test('the spinner line leaves room for Claude Code\'s longest status', () => {
   const status = ' (1h 5m 28s · ↓ 128.7k tokens · thinking with high effort)'
   const off = { showHadith: false, showMeaning: true }
   for (const cols of [80, 90, 100, 120, 160]) {
-    const suffix = spinnerParts(e, null, off, cols).suffix ?? '…'
+    const meaning = spinnerParts(e, null, off, cols).meaning
+    const suffix = meaning === null ? '…' : meaning + '…'
     expect(2 + e.en.length + suffix.length + status.length).toBeLessThanOrEqual(cols)
   }
 })

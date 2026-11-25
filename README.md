@@ -45,7 +45,7 @@ When Claude is done:
 
 ### In VS Code
 
-The Claude Code panel in VS Code shows the zikr too, with the name of Allah in
+The Claude Code panel in VS Code shows the zikr too, with the zikr or name in
 color and Claude's sparkling star:
 
 ```
@@ -71,7 +71,7 @@ step follows it, with the app's own animation and timer kept:
 ```
 
 The line has room for one row only, so a long zikr shows without its meaning
-there. After each answer you also get an "Alhamdulillah · 41s" line.
+there, and there is no hadith under the spinner. After each answer you also get an "Alhamdulillah · 41s" line.
 
 ## Install
 
@@ -195,12 +195,22 @@ on sunnah.com, for example `https://sunnah.com/bukhari:2446`.
 
 Claude Code plugins can run code on your machine, so only install ones you
 trust. You can check what this one does yourself: after Step 2, run
-`claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
-`calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
-`$.session.surfaces` (whether you are in the terminal, VS Code or the Desktop
-app) and `$.session.turns` (how many messages you have sent, a number only, so
-a reopened conversation does not get a second Bismillah), with no file, shell
-or network access. Run it again after each update.
+
+```
+claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop
+```
+
+Look for the line that starts with `./register.js calls:` (the other notes
+are for plugin authors). It lists only:
+
+- `$.clock`: timing, to change the word every 8 seconds
+- `$.ui`: drawing on the screen
+- `$.session.surfaces`: whether you are in the terminal, VS Code or the
+  Desktop app
+- `$.session.turns`: how many messages you have sent, a number only, never
+  their text, so a reopened conversation does not get a second Bismillah
+
+No file, shell or network access. Run the check again after each update.
 
 The scripts in `tools/` are only for preparing new content. The maintainer
 runs them by hand, they do fetch from the internet, and the plugin never
@@ -222,8 +232,9 @@ Small on purpose: about 330 lines of plain JavaScript and one content file.
 - **`data/content.js`** ships all zikr, names and hadith inside the plugin.
   Nothing is fetched while you work.
 - **`tools/`** is the content workshop, run by hand only.
-  `fetch-candidates.js` pulls hadith and the 99 names from public sources,
-  `extract.js` keeps only short, direct sayings of the Prophet (ﷺ), and
+  `fetch-candidates.js` pulls hadith and the 99 names from public sources and
+  keeps quotes of 30 to 200 characters, `extract.js` keeps only direct sayings
+  of the Prophet (ﷺ), and
   `review.html` is a small page where a person approves each one. No hadith
   gets in without a human check.
 

@@ -10,11 +10,15 @@ export const ROTATE_MS = 8000
 // Room left for Claude Code's own part of the spinner line, which can grow to
 // " (1h 5m 28s · ↓ 128.7k tokens · thinking with high effort)". A line wider than
 // the window wraps, and the fullscreen renderer then leaves stale rows behind.
-const SPINNER_EXTRA = 60
+export const SPINNER_EXTRA = 60
 
-// Content is printed to terminals: refuse control characters (escape sequences)
-// and bidirectional overrides, which could hide or reorder text.
-const UNSAFE_CHARS = /[\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/
+/** Whether text fits on the terminal's spinner line; undefined columns means not measured. */
+const fitsLine = (text, columns) => columns === undefined || 2 + text.length + SPINNER_EXTRA <= columns
+
+// Content is printed to terminals: refuse control characters (escape sequences),
+// invisible format characters (zero-width spaces, direction marks and overrides,
+// which could hide or reorder text) and line separators.
+const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\u2028\u2029]/u
 const SUNNAH_URL = /^https:\/\/sunnah\.com\//
 
 const filled = (v) => typeof v === 'string' && v.trim() !== '' && !UNSAFE_CHARS.test(v)
@@ -47,7 +51,7 @@ export function loadContent(raw) {
  */
 export function wordAt(content, elapsedMs, turnOffset, columns) {
   const pool = [...content.zikr, ...content.names]
-    .filter((x) => columns === undefined || 2 + x.en.length + SPINNER_EXTRA <= columns)
+    .filter((x) => fitsLine(x.en, columns))
   if (!pool.length) return null
   const { en, meaning } = pool[(turnOffset + Math.floor(elapsedMs / ROTATE_MS)) % pool.length]
   return { en, meaning }
@@ -102,8 +106,8 @@ export function doneText(ms) {
  */
 export function spinnerParts(entry, hadith, opts, columns) {
   const meaning = ' · ' + entry.meaning
-  // + 1 for the "…" the terminal puts after the meaning
-  const fits = columns === undefined || 2 + entry.en.length + meaning.length + 1 + SPINNER_EXTRA <= columns
+  // With the "…" the terminal puts after the meaning
+  const fits = fitsLine(entry.en + meaning + '…', columns)
   return {
     meaning: opts.showMeaning && fits ? meaning : null,
     ...(opts.showHadith && hadith ? hadithParts(hadith) : { quote: null, source: null }),

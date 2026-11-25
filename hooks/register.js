@@ -35,9 +35,8 @@ function hadithBlock({ Box, Text }, { quote, source }, layout = {}) {
   ] })
 }
 
-// The spinner is drawn differently on each surface. The tool that loads this module
-// follows $ only into functions declared at the top of the file, so each surface has
-// its own named renderer rather than a method in a table.
+// The spinner is drawn differently on each surface, so each has its own renderer.
+// They are top-level functions because the plugin loader follows $ only into those.
 
 // Claude's status shares this line, so the width matters; the hadith goes underneath.
 async function terminalSpinner($, e, next, { entry, columns, hadith, opts }) {
@@ -63,7 +62,7 @@ function vscodeSpinner($, e, { entry, elapsed, opts }) {
     Box({ width: 2, children: [Text({ color: 'claude', children: [star] })] }),
     Text({ children: [
       Text({ color: 'success', weight: 'semibold', children: [entry.en] }),
-      Text({ dimColor: true, children: [meaning ?? ''] }),
+      ...(meaning ? [Text({ dimColor: true, children: [meaning] })] : []),
     ] }),
   ] })
 }
@@ -77,16 +76,8 @@ function desktopSpinner(e, next, { entry, opts }) {
   return next({ ...e, props: { ...e.props, word: `${zikr}${DESKTOP_SEPARATOR}${e.props.word}` } })
 }
 
-/**
- * The surfaces we draw the spinner on.
- *   redrawMs       how often the line needs redrawing while a turn runs
- *   measuresWidth  whether the window width limits what fits on the line
- */
-const SPINNER_SURFACES = {
-  terminal: { redrawMs: ROTATE_MS, measuresWidth: true },
-  vscode: { redrawMs: STAR_MS, measuresWidth: false },
-  desktop: { redrawMs: ROTATE_MS, measuresWidth: false },
-}
+/** The surfaces we draw the spinner on. */
+const SPINNER_SURFACES = ['terminal', 'vscode', 'desktop']
 
 /** The surfaces showing this session; empty when they can't be read. */
 async function readSurfaces($) {
@@ -123,7 +114,7 @@ export function register(on, options) {
     turn.timer = null
   }
 
-  /** True the first time only, so Bismillah is said once per session. */
+  /** True the first time only, so Bismillah is said once per load of the plugin. */
   function firstGreeting() {
     if (greeted) return false
     greeted = true
@@ -134,21 +125,23 @@ export function register(on, options) {
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
     turn.id = e.turnId
+    // Before any wait, so a turn that ends at once can't bring the start card back.
+    if (startCard) {
+      startCard = false
+      $.ui.invalidate('ui.render')
+    }
     turn.start = await $.clock.now()
     turn.offset = Math.floor(Math.random() * poolLength)
     turn.hadith = randomHadith(CONTENT, Math.random)
     const drawn = await readSurfaces($)
     // A later turn started while we waited, and it owns the timer.
     if (turn.id !== e.turnId) return next(e)
-    const redrawMs = Math.min(ROTATE_MS, ...drawn.map((s) => SPINNER_SURFACES[s]?.redrawMs ?? ROTATE_MS))
+    // VS Code's text star needs a frame every 120 ms; elsewhere only the word changes.
+    const redrawMs = drawn.includes('vscode') ? STAR_MS : ROTATE_MS
     turn.timer?.cancel()
     turn.timer = $.clock.every(redrawMs, () => {
       if (turn.id) $.ui.invalidate('ui.render')
     })
-    if (startCard) {
-      startCard = false
-      $.ui.invalidate('ui.render')
-    }
     return next(e)
   }).catch(() => undefined)
 
@@ -184,10 +177,11 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    const surface = SPINNER_SURFACES[e.surface]
     // A status message such as "Compacting conversation" stays Claude Code's.
-    if (!surface || e.props.message) return next(e)
-    const columns = surface.measuresWidth ? e.viewport?.columns : undefined
+    if (!SPINNER_SURFACES.includes(e.surface) || e.props.message) return next(e)
+    // Only the terminal's width limits the line: VS Code reports too few columns,
+    // and the desktop line is cut to fit by DESKTOP_ZIKR_MAX instead.
+    const columns = e.surface === 'terminal' ? e.viewport?.columns : undefined
     const elapsed = (await $.clock.now()) - turn.start
     const entry = wordAt(CONTENT, elapsed, turn.offset, columns)
     if (!entry) return next(e)

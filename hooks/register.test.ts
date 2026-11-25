@@ -1,10 +1,13 @@
 import { expect, mock, test } from 'claude-code/testing'
 import raw from '../data/content.js'
+import { SPINNER_EXTRA } from './picker.js'
 
 // ---- Fixtures ----
 
 const POOL = [...raw.zikr, ...raw.names]
 const WORDS = new Set(POOL.map((x) => x.en))
+/** The narrowest terminal where the shortest name still fits beside Claude Code's status. */
+const MIN_COLUMNS = 2 + Math.min(...POOL.map((x) => x.en.length)) + SPINNER_EXTRA
 const STAR_FRAMES = ['·', '✢', '*', '✶', '✻', '✽', '✽', '✻', '✶', '*', '✢', '·']
 const QUOTE = /^".+"$/
 const SOURCE = /^~ .+ · (Bukhari|Muslim) \S+$/
@@ -75,12 +78,13 @@ test('in a narrow window every spinner word fits on one line', async ($, on) => 
   await $.ui.mount({ ...SPINNER, viewport: { columns: 80, rows: 30 } })
   for (let i = 0; i < 115; i++) await clock.advance(8000)
   expect(seen.length).toBeGreaterThan(100)
-  expect(seen.filter((w) => 2 + w.length + 60 > 80)).toEqual([])
+  expect(seen.filter((w) => 2 + w.length + SPINNER_EXTRA > 80)).toEqual([])
 })
-test('below 68 columns no word fits, so the spinner and its hadith are left to Claude Code', async ($, on) => {
+test('when no word fits the window, the spinner and its hadith are left to Claude Code', async ($, on) => {
   const seen: string[] = []; mock.clock(on); engine(on, seen)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  const ui = await $.ui.mount({ ...SPINNER, viewport: { columns: 67, rows: 30 } })
+  expect(MIN_COLUMNS).toBe(68)   // the README says "about 68 columns"
+  const ui = await $.ui.mount({ ...SPINNER, viewport: { columns: MIN_COLUMNS - 1, rows: 30 } })
   expect(seen.at(-1)).toBe('Baking')
   expect(await ui.find({ type: 'Text', text: QUOTE })).toBeUndefined()
 })
@@ -91,6 +95,19 @@ test('with Show meaning off, the terminal spinner keeps the word and its hadith 
   expect(WORDS.has(seen.at(-1)!)).toBe(true)
   expect(await ui.find({ type: 'Text', text: /\| · / })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: QUOTE })).toBeDefined()
+})
+test('with Show hadith off, the terminal spinner has no hadith under it', { options: { show_hadith: false } }, async ($, on) => {
+  const seen: string[] = []; mock.clock(on); engine(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  const ui = await $.ui.mount({ ...SPINNER, viewport: { columns: 200, rows: 30 } })
+  expect(WORDS.has(seen.at(-1)!)).toBe(true)
+  expect(await ui.find({ type: 'Text', text: QUOTE })).toBeUndefined()
+})
+test('the mobile app, which we do not draw on, keeps Claude Code\'s own spinner', async ($, on) => {
+  const seen: string[] = []; mock.clock(on); engine(on, seen)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.ui.mount({ ...SPINNER, surface: 'mobile' })
+  expect(seen.at(-1)).toBe('Baking')
 })
 test('Claude Code status messages pass through untouched', async ($, on) => {
   const seen: string[] = []; mock.clock(on); engine(on, seen)
@@ -130,6 +147,17 @@ test('a subagent turn does not stop the main rotation', async ($, on) => {
   await clock.advance(8000)
   expect(seen.length).toBeGreaterThan(count)
 })
+test('a new main turn cancels the old turn\'s timer, so redraws do not double up', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); engine(on, seen)
+  await $.turn.start({ text: 'one', turnId: 't1' })
+  await clock.advance(4000)
+  // Half way through t1's 8 s, so a leftover t1 timer would fire between t2's own ticks
+  await $.turn.start({ text: 'two', turnId: 't2' })
+  await $.ui.mount(SPINNER)
+  const count = seen.length
+  await clock.advance(24000)
+  expect(seen.length - count).toBe(3)
+})
 test('a second main turn replaces the first turn\'s timer', async ($, on) => {
   const seen: string[] = []; const clock = mock.clock(on); engine(on, seen)
   await $.turn.start({ text: 'one', turnId: 't1' })
@@ -139,6 +167,22 @@ test('a second main turn replaces the first turn\'s timer', async ($, on) => {
   const count = seen.length
   await clock.advance(24000)
   expect(seen.length).toBe(count)
+})
+
+test('a turn that ends while it is still starting leaves no timer and no start card', async ($, on) => {
+  const seen: string[] = []; const clock = mock.clock(on); engine(on, seen)
+  // The surfaces answer late, after the turn has already completed
+  on('session.surfaces', async ($: any) => { await $.clock.sleep(1000); return { value: ['terminal'] } })
+  const starting = $.turn.start({ text: 'hi', turnId: 't1' })
+  const completing = $.turn.complete(done('t1'))
+  await clock.advance(1000)
+  await Promise.all([starting, completing])
+  await $.ui.mount(SPINNER)
+  const count = seen.length
+  await clock.advance(24000)
+  expect(seen.length).toBe(count)
+  const band = await $.ui.mount(BAND)
+  expect(await band.find({ type: 'Text', text: QUOTE })).toBeUndefined()
 })
 
 // ---- Done line and greetings ----

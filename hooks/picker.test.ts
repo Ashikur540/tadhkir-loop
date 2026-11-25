@@ -28,6 +28,10 @@ test('loadContent drops text with control or direction-override characters', () 
   expect(c.zikr.length).toBe(1)
   expect(c.names.length).toBe(1)
   expect(c.hadith.length).toBe(1)
+  // Invisible characters: zero-width space, right-to-left mark, line separator
+  for (const bad of ['\u200B', '\u200F', '\u2028']) {
+    expect(loadContent({ ...RAW, zikr: [{ id: 'z', en: 'Subhan' + bad + 'Allah', meaning: 'x' }] })!.zikr.length).toBe(0)
+  }
 })
 test('loadContent returns null for broken input', () => {
   expect(loadContent(null)).toBe(null)

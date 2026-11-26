@@ -61,17 +61,21 @@ VS Code puts a frame around anything extra a plugin draws.
 
 ### In the Desktop app
 
-A new Claude Code session in the Desktop app starts with Bismillah and the
-hadith of the day just above the message box, until you send your first
-message. While Claude works, the zikr leads the spinner and Claude's real
-step follows it, with the app's own animation and timer kept:
+In a new Claude Code chat in the Desktop app, a Bismillah line appears as
+Claude starts on your first message. While Claude works, the zikr leads the
+spinner and Claude's real step follows it, with the app's own animation and
+timer kept:
 
 ```
 •• Al-Muqaddim · The Expediter | Creating notes.md   12s
 ```
 
 The line has room for one row only, so a long zikr shows without its meaning
-there, and there is no hadith under the spinner. After each answer you also get an "Alhamdulillah · 41s" line.
+there. After each answer you also get an "Alhamdulillah · 41s" line.
+
+The Desktop app shows no hadith. It starts Claude Code only when you send
+your first message, so a plugin can't show anything on its welcome screen, and
+the spinner line has room for one row only.
 
 ## Install
 

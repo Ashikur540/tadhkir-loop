@@ -3,7 +3,9 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { extract, cleanName } from './extract.js'
 
-const HADITH_API = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions'
+// Pinned to one commit, so a later change upstream can't slip new text into a review.
+// To take newer data, update the hash on purpose and review again.
+const HADITH_API = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@df57907be35291c91ad6a6691180e22ca9920784/editions'
 const NAMES_API = 'https://api.aladhan.com/v1/asmaAlHusna'
 const MAX_QUOTE = 200
 // Shorter quotes are almost always replies inside a story ("Sell it to me.")

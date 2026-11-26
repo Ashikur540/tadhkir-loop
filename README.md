@@ -45,19 +45,37 @@ When Claude is done:
 
 ### In VS Code
 
-The Claude Code panel in VS Code shows the zikr too, with the name of Allah in
+The Claude Code panel in VS Code shows the zikr too, with the zikr or name in
 color and Claude's sparkling star:
 
 ```
 From the tadhkir-loop plugin
-✻ Al-Muqaddim · The Expediter…
+✻ Al-Muqaddim · The Expediter
 ```
 
 VS Code adds the small "From the tadhkir-loop plugin" label itself, so you
 always know what changed the screen. You also get a Bismillah line when the
 panel opens, and an "Alhamdulillah · 41s" line after each answer. The hadith
-under the spinner and the hadith of the day stay in the terminal, because VS
-Code puts a frame around anything extra a plugin draws.
+under the spinner and the hadith of the day are not shown in VS Code, because
+VS Code puts a frame around anything extra a plugin draws.
+
+### In the Desktop app
+
+In a new Claude Code chat in the Desktop app, a Bismillah line appears as
+Claude starts on your first message. While Claude works, the zikr leads the
+spinner and Claude's real step follows it, with the app's own animation and
+timer kept:
+
+```
+•• Al-Muqaddim · The Expediter | Creating notes.md   12s
+```
+
+The line has room for one row only, so a long zikr shows without its meaning
+there. After each answer you also get an "Alhamdulillah · 41s" line.
+
+The Desktop app shows no hadith. It starts Claude Code only when you send
+your first message, so a plugin can't show anything on its welcome screen, and
+the spinner line has room for one row only.
 
 ## Install
 
@@ -136,18 +154,19 @@ claude plugin marketplace remove tadhkir-loop
 - **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.
   Start a new Claude session after installing; an open one keeps running
   without the plugin.
-- **You use the Desktop app:** the zikr does not show there for now. Its
-  spinner shows what Claude is really doing ("Creating notes.md"), and the
-  zikr would hide that. Plugins do not load in WSL sessions of the Desktop
-  app; Claude Code run in a WSL terminal works as normal.
+- **You use the Desktop app:** see [In the Desktop app](#in-the-desktop-app)
+  for what shows there. Start a new session after installing. Plugins do not
+  load in WSL sessions of the Desktop app; Claude Code run in a WSL terminal
+  works as normal.
 - Still stuck? Open an issue on this repo with your `claude --version` and
   your operating system.
 
 ## Settings
 
 In the terminal, open `/config` and look for Tadhkir Loop. In VS Code,
-`/config` opens VS Code's own settings instead: type `/plugins` and click the
-gear icon on the Tadhkir Loop row. Both places change the same switches:
+`/config` opens VS Code's own settings instead: open **Manage plugins** in
+the Claude panel and click the gear icon on the Tadhkir Loop row. Both
+places change the same switches:
 
 - **Show hadith**: the hadith under the spinner and the hadith of the day
   card. On by default.
@@ -156,9 +175,10 @@ gear icon on the Tadhkir Loop row. Both places change the same switches:
 For a cleaner look, turn off **Show tips** in `/config`. That hides Claude
 Code's own tip line, which otherwise sits between the spinner and the hadith.
 
-In a narrow window the plugin makes room on its own: the meaning is left out
-when the line would wrap, and the hadith under the spinner is hidden when the
-window is narrower than 60 columns.
+In a narrow terminal the plugin makes room on its own. The meaning is left
+out when the line would wrap, and a zikr too long for the line is skipped.
+Below about 68 columns nothing fits, so you see Claude's own spinner, with no
+hadith under it, until the window is wider again.
 
 ## What is inside
 
@@ -179,27 +199,46 @@ on sunnah.com, for example `https://sunnah.com/bukhari:2446`.
 
 Claude Code plugins can run code on your machine, so only install ones you
 trust. You can check what this one does yourself: after Step 2, run
-`claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop`. Its
-`calls:` line lists only `$.clock` (timing), `$.ui` (drawing) and
-`$.session.surfaces` (whether you are in the terminal or VS Code), with no
-file, shell or network access.
+
+```
+claude plugin validate ~/.claude/plugins/marketplaces/tadhkir-loop
+```
+
+Look for the line that starts with `./register.js calls:` (the other notes
+are for plugin authors). It lists only:
+
+- `$.clock`: timing, to change the word every 8 seconds
+- `$.ui`: drawing on the screen
+- `$.session.surfaces`: whether you are in the terminal, VS Code or the
+  Desktop app
+- `$.session.turns`: how many messages you have sent, a number only, never
+  their text, so a reopened conversation does not get a second Bismillah
+
+No file, shell or network access. Run the check again after each update.
+
+The scripts in `tools/` are only for preparing new content. The maintainer
+runs them by hand, they do fetch from the internet, and the plugin never
+loads them.
 
 ## How it is built
 
-Small on purpose: about 200 lines of plain JavaScript and one content file.
+Small on purpose: about 330 lines of plain JavaScript and one content file.
 
 - **`hooks/register.js`** listens to Claude Code's turn events. When a turn
   starts it picks a random starting word and a hadith, then a timer swaps the
   word every 8 seconds. Turns started by sub-agents are ignored, so a helper
-  task finishing early never stops the main spinner.
+  task finishing early never stops the main spinner. The terminal, VS Code
+  and the Desktop app each draw the spinner differently, so each has its own
+  small renderer.
 - **`hooks/picker.js`** holds the pure logic: which word to show at a given
   second, the hadith of the day (same for everyone on the same date), and
   fitting the line to a narrow window. Pure functions, so they are easy to test.
 - **`data/content.js`** ships all zikr, names and hadith inside the plugin.
   Nothing is fetched while you work.
 - **`tools/`** is the content workshop, run by hand only.
-  `fetch-candidates.js` pulls hadith and the 99 names from public sources,
-  `extract.js` keeps only short, direct sayings of the Prophet (ﷺ), and
+  `fetch-candidates.js` pulls hadith and the 99 names from public sources and
+  keeps quotes of 30 to 200 characters, `extract.js` keeps only direct sayings
+  of the Prophet (ﷺ), and
   `review.html` is a small page where a person approves each one. No hadith
   gets in without a human check.
 

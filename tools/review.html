@@ -57,6 +57,7 @@
 <script>
 const STORE_KEY = 'tadhkir-review-v1'
 const MAX_HADITH = 200
+const SUNNAH_URL = /^https:\/\/sunnah\.com\//
 const TABS = ['zikr', 'names', 'hadith']
 
 let data = null          // candidates.json
@@ -182,11 +183,13 @@ function render() {
     card.append(row)
     const url = field('url', v.url)
     const open = document.createElement('a')
-    open.href = v.url
+    // Only a sunnah.com link may become clickable: a loaded file could carry a javascript: URL
+    const point = (href) => SUNNAH_URL.test(href) ? (open.href = href) : open.removeAttribute('href')
+    point(v.url)
     open.target = '_blank'
     open.rel = 'noopener'
     open.textContent = 'Open on sunnah.com'
-    url.addEventListener('input', () => { open.href = url.value })
+    url.addEventListener('input', () => point(url.value))
     card.append(labelled('sunnah.com link', url), open)
     const warn = document.createElement('div')
     warn.id = 'lenwarn'

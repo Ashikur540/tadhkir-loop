@@ -1,25 +1,39 @@
-// Pure picking and formatting. No Claude Code imports, so it is easy to test.
+// Pure content picking and formatting. No Claude Code imports, so it is easy to test.
 
 /** @typedef {{ en: string, meaning: string }} Entry */
 /** @typedef {{ id: string, collection: 'Bukhari' | 'Muslim', number: string, narrator: string, en: string, url: string }} Hadith */
 /** @typedef {{ zikr: Entry[], names: Entry[], hadith: Hadith[] }} Content */
 
-const ROTATE_MS = 8000
-const MIN_HADITH_COLUMNS = 60
+/** How long each zikr or name stays in the spinner. */
+export const ROTATE_MS = 8000
+
 // Room left for Claude Code's own part of the spinner line, which can grow to
 // " (1h 5m 28s · ↓ 128.7k tokens · thinking with high effort)". A line wider than
 // the window wraps, and the fullscreen renderer then leaves stale rows behind.
-const SPINNER_EXTRA = 60
+export const SPINNER_EXTRA = 60
 
-const filled = (v) => typeof v === 'string' && v.trim() !== ''
+/** Whether text fits on the terminal's spinner line; undefined columns means not measured. */
+const fitsLine = (text, columns) => columns === undefined || 2 + text.length + SPINNER_EXTRA <= columns
+
+// Content is printed to terminals: refuse control characters (escape sequences),
+// invisible format characters (zero-width spaces, direction marks and overrides,
+// which could hide or reorder text) and line separators.
+const UNSAFE_CHARS = /[\p{Cc}\p{Cf}\u2028\u2029]/u
+const SUNNAH_URL = /^https:\/\/sunnah\.com\//
+
+const filled = (v) => typeof v === 'string' && v.trim() !== '' && !UNSAFE_CHARS.test(v)
 const list = (v) => (Array.isArray(v) ? v : [])
 
 const isEntry = (x) => !!x && filled(x.en) && filled(x.meaning)
 const isHadith = (x) =>
   !!x && (x.collection === 'Bukhari' || x.collection === 'Muslim') &&
-  ['id', 'number', 'narrator', 'en', 'url'].every((k) => filled(x[k]))
+  ['id', 'number', 'narrator', 'en', 'url'].every((k) => filled(x[k])) &&
+  SUNNAH_URL.test(x.url)
 
-/** @returns {Content | null} */
+/**
+ * Keeps only well-formed records.
+ * @returns {Content | null} null when there is nothing to show in the spinner
+ */
 export function loadContent(raw) {
   if (!raw || typeof raw !== 'object') return null
   const zikr = list(raw.zikr).filter(isEntry)
@@ -28,37 +42,50 @@ export function loadContent(raw) {
   return { zikr, names, hadith: list(raw.hadith).filter(isHadith) }
 }
 
-// Only words that fit on one spinner line; null when none do
-/** @returns {Entry | null} */
+/**
+ * The zikr or name to show `elapsedMs` into a turn, skipping any that would not
+ * fit on one spinner line.
+ * @param {number} turnOffset where this turn starts in the list
+ * @param {number} [columns] the line's width; undefined means not measured, so all fit
+ * @returns {Entry | null} null when none fit
+ */
 export function wordAt(content, elapsedMs, turnOffset, columns) {
   const pool = [...content.zikr, ...content.names]
-    .filter((x) => columns === undefined || 2 + x.en.length + SPINNER_EXTRA <= columns)
+    .filter((x) => fitsLine(x.en, columns))
   if (!pool.length) return null
   const { en, meaning } = pool[(turnOffset + Math.floor(elapsedMs / ROTATE_MS)) % pool.length]
   return { en, meaning }
 }
 
-// Whole days from the epoch to the local calendar date, so DST can't shift it
+/** Whole days from the epoch to the local calendar date, so DST can't shift it. */
 export function localDayNumber(date) {
   return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000
 }
 
-/** @returns {Hadith | null} */
+/**
+ * The same hadith for everyone on the same local date.
+ * @returns {Hadith | null}
+ */
 export function hadithOfDay(content, date) {
   const { hadith } = content
   return hadith.length ? hadith[localDayNumber(date) % hadith.length] : null
 }
 
-/** @returns {Hadith | null} */
+/**
+ * @param {() => number} rand a source like Math.random
+ * @returns {Hadith | null}
+ */
 export function randomHadith(content, rand) {
   const { hadith } = content
   return hadith.length ? hadith[Math.floor(rand() * hadith.length)] : null
 }
 
+/** The quoted text and its source line, e.g. `~ Abu Huraira · Bukhari 2009`. */
 export function hadithParts(h) {
   return { quote: `"${h.en}"`, source: `~ ${h.narrator} · ${h.collection} ${h.number}` }
 }
 
+/** `41s`, `1m 8s` or `1h 2m`. */
 export function formatDuration(ms) {
   const s = Math.floor(ms / 1000)
   if (s < 60) return `${s}s`
@@ -66,13 +93,23 @@ export function formatDuration(ms) {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
-/** @returns {{ suffix: string | null, quote: string | null, source: string | null }} */
+/** The words that close a turn, e.g. `Alhamdulillah · 41s`. */
+export function doneText(ms) {
+  return 'Alhamdulillah · ' + formatDuration(ms)
+}
+
+/**
+ * What surrounds the word on a spinner line.
+ * @param {number} [columns] the line's width; undefined means not measured, so all fit
+ * @returns {{ meaning: string | null, quote: string | null, source: string | null }}
+ *   `meaning` is ` · <meaning>`, or null when switched off or too wide for the line
+ */
 export function spinnerParts(entry, hadith, opts, columns) {
-  const wide = (need) => columns === undefined || need <= columns
-  const suffix = ' · ' + entry.meaning + '…'
-  const show = opts.showHadith && hadith && wide(MIN_HADITH_COLUMNS)
+  const meaning = ' · ' + entry.meaning
+  // With the "…" the terminal puts after the meaning
+  const fits = fitsLine(entry.en + meaning + '…', columns)
   return {
-    suffix: opts.showMeaning && wide(2 + entry.en.length + suffix.length + SPINNER_EXTRA) ? suffix : null,
-    ...(show ? hadithParts(hadith) : { quote: null, source: null }),
+    meaning: opts.showMeaning && fits ? meaning : null,
+    ...(opts.showHadith && hadith ? hadithParts(hadith) : { quote: null, source: null }),
   }
 }

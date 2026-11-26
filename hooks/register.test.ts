@@ -236,18 +236,21 @@ test('reopening a Desktop or VS Code conversation adds no second Bismillah', asy
   const logs: string[] = []
   on('session.turns', () => ({ value: 2 }))
   await desktop($, on, logs)
+  await $.turn.start({ text: 'more', turnId: 't3' })
   expect(logs).toEqual([])
 })
 
-test('a new Desktop session started by its first message still gets Bismillah', async ($, on) => {
-  // With no spare process ready, the app starts Claude Code with the first message, so by
-  // the time the window attaches the count already includes it
+test('in a new Desktop chat, Bismillah comes when Claude starts on the first message', async ($, on) => {
+  // The app shows no row logged while its window connects, and with no spare process ready
+  // it starts Claude Code with the first message, when the count already includes it
   const logs: string[] = []
   let started = false
   on('session.turns', () => ({ value: started ? 1 : 0 }))
   await desktop($, on, logs, false)
   started = true
   await $.session.attach({ surface: 'desktop', clientId: 'app-1' })
+  expect(logs).toEqual([])
+  await $.turn.start({ text: 'hi', turnId: 't1' })
   expect(logs).toEqual(['Bismillah'])
 })
 
@@ -356,7 +359,7 @@ test('a desktop status message passes through untouched', async ($, on) => {
   await $.ui.mount({ ...SPINNER, surface: 'desktop', props: { ...SPINNER.props, word: 'Working', message: 'Compacting conversation' } })
   expect(seen.at(-1)).toBe('Working')
 })
-test('in the Desktop app, Bismillah once when it attaches, and Alhamdulillah after a finished answer', async ($, on) => {
+test('in the Desktop app, Bismillah once with the first message, and Alhamdulillah after a finished answer', async ($, on) => {
   const logs: string[] = []; await desktop($, on, logs)
   await $.session.attach({ surface: 'desktop', clientId: 'app-1' })
   await $.turn.start({ text: 'hi', turnId: 't1' })

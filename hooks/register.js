@@ -137,6 +137,9 @@ export function register(on, options) {
     turn.offset = Math.floor(Math.random() * poolLength)
     turn.hadith = randomHadith(CONTENT, Math.random)
     const drawn = await readSurfaces($)
+    // The desktop shows no row logged while its window connects, so a new chat there
+    // greets as Claude starts on the first message.
+    if (drawn.includes('desktop') && !underway && firstGreeting()) $.ui.log(BISMILLAH)
     // A later turn started while we waited, and it owns the timer.
     if (turn.id !== e.turnId) return next(e)
     // VS Code's text star needs a frame every 120 ms; elsewhere only the word changes.
@@ -175,8 +178,8 @@ export function register(on, options) {
   }).catch(() => undefined)
 
   on('session.attach', async ($, e, next) => {
-    // The apps start non-interactive and greet when their window attaches.
-    if (APP_SURFACES.includes(e.surface) && !underway && firstGreeting()) $.ui.log(BISMILLAH)
+    // VS Code starts non-interactive and shows a row logged when its panel attaches.
+    if (e.surface === 'vscode' && !underway && firstGreeting()) $.ui.log(BISMILLAH)
     return next(e)
   }).catch(() => undefined)
 

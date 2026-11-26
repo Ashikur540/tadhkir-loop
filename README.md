@@ -90,7 +90,7 @@ Open your terminal and run:
 claude --version
 ```
 
-You need **2.1.310 or newer**. If yours is older, run `claude update` first.
+You need **2.1.331 or newer**. If yours is older, run `claude update` first.
 
 ### Step 2: Add this plugin's catalog
 
@@ -148,7 +148,7 @@ claude plugin marketplace remove tadhkir-loop
 
 - **Nothing changed after installing:** restart Claude Code. A plugin loads
   when Claude Code starts.
-- **Still nothing:** run `claude --version` and make sure it is 2.1.310 or
+- **Still nothing:** run `claude --version` and make sure it is 2.1.331 or
   newer, then run `claude plugin list` and check that `tadhkir-loop` is there
   and enabled.
 - **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.

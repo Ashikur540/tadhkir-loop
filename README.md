@@ -77,6 +77,18 @@ The Desktop app shows no hadith. It starts Claude Code only when you send
 your first message, so a plugin can't show anything on its welcome screen, and
 the spinner line has room for one row only.
 
+### Where it does not work
+
+Tadhkir Loop is a Claude Code plugin. It draws only in the terminal, VS Code
+and the Desktop app.
+
+- **claude.ai, the Claude website and chat:** this is Claude chat, not Claude
+  Code. Chat skips the kind of code this plugin is made of, so nothing changes.
+- **Claude Code on the web (claude.ai/code):** the plugin only draws in the
+  terminal, VS Code and the Desktop app, so the web page stays as it is.
+- **The Claude mobile app:** the plugin does not draw there yet, so you see
+  Claude's usual spinner.
+
 ## Install
 
 It takes about a minute. You only need Claude Code. You do not need to
@@ -90,7 +102,7 @@ Open your terminal and run:
 claude --version
 ```
 
-You need **2.1.310 or newer**. If yours is older, run `claude update` first.
+You need **2.1.331 or newer**. If yours is older, run `claude update` first.
 
 ### Step 2: Add this plugin's catalog
 
@@ -148,7 +160,7 @@ claude plugin marketplace remove tadhkir-loop
 
 - **Nothing changed after installing:** restart Claude Code. A plugin loads
   when Claude Code starts.
-- **Still nothing:** run `claude --version` and make sure it is 2.1.310 or
+- **Still nothing:** run `claude --version` and make sure it is 2.1.331 or
   newer, then run `claude plugin list` and check that `tadhkir-loop` is there
   and enabled.
 - **You use VS Code:** see [In VS Code](#in-vs-code) for what shows there.
